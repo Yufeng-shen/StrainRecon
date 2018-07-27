@@ -5,7 +5,7 @@ from InitStrain import Det1, g13Gs1_2nd, g13Info1_2nd, g13pos2nd, eng, g13orien2
 recon13=StrainReconstructor_GPU( _NumG=108,
         bfPath='/home/yufengs/workspace/g13Ps1_2nd_bf',
         fltPath='/home/yufengs/workspace/g13Ps1_2nd_filtered',
-        maxIntfn='AuxData/MaxInt_g15Ps1_2nd.npy',
+        maxIntfn='AuxData/MaxInt_g13Ps1_2nd.npy',
         _Det=Det1, _Gs=g13Gs1_2nd, _Info=g13Info1_2nd, _eng=eng)
 
 ReconGrain13=ReconSingleGrain(grainOrien=[120.784, 80.9295, 246.202],

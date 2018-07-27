@@ -190,6 +190,7 @@ class ReconSingleGrain(object):
         return AllMaxScore, AllMaxS
 
     def Transform2RealS(self,AllMaxS):
+        AllMaxS=np.array(AllMaxS)
         realS=np.empty(AllMaxS.shape)
         realO=np.empty(AllMaxS.shape)
         for ii in range(len(realS)):

@@ -1,23 +1,33 @@
 import numpy as np
 from Reconst_GPU import StrainReconstructor_GPU, ReconSingleGrain
-from InitStrain import Det1, g13Gs1_2nd, g13Info1_2nd, g13pos2nd, eng, g13orien2nd
+from InitStrain import Initializer
 
-recon13=StrainReconstructor_GPU( _NumG=108,
-        bfPath='/home/yufengs/workspace/g13Ps1_2nd_bf',
-        fltPath='/home/yufengs/workspace/g13Ps1_2nd_filtered',
-        maxIntfn='AuxData/MaxInt_g13Ps1_2nd.npy',
-        _Det=Det1, _Gs=g13Gs1_2nd, _Info=g13Info1_2nd, _eng=eng)
+outname='/home/yufengs/Strain/Results/dJ0dK0dD5dT0/g15_2nd/'
 
-ReconGrain13=ReconSingleGrain(grainOrien=[120.784, 80.9295, 246.202],
-        micfn='AuxData/Ti7_WithHRM_2ndLoad_z1_.mic.LBFS')
+Cfg=Initializer('ConfigFiles/g15Ps1_2nd.yml')
 
-x,y,con=ReconGrain13.GetGrids()
-np.save('/home/yufengs/Strain/Results/g13_2nd/x.npy',x)
-np.save('/home/yufengs/Strain/Results/g13_2nd/y.npy',y)
-np.save('/home/yufengs/Strain/Results/g13_2nd/con.npy',con)
-AllMaxScore,AllMaxS=ReconGrain13.ReconGrids(x,y,recon13)
-np.save('/home/yufengs/Strain/Results/g13_2nd/allMaxScore.npy',AllMaxScore)
-np.save('/home/yufengs/Strain/Results/g13_2nd/allMaxS.npy',AllMaxS)
-realO,realS=ReconGrain13.Transform2RealS(AllMaxS)
-np.save('/home/yufengs/Strain/Results/g13_2nd/realS.npy',realS)
-np.save('/home/yufengs/Strain/Results/g13_2nd/realO.npy',realO)
+Cfg.Simulate()
+
+Cfg.Move(dD=0.005)
+
+print(Cfg.NumG)
+
+recon=StrainReconstructor_GPU( _NumG=Cfg.NumG,
+        bfPath=Cfg.bfPath,
+        fltPath=Cfg.fltPath,
+        maxIntfn=Cfg.maxIntfn,
+        _Det=Cfg.Det, _Gs=Cfg.Gs, _Info=Cfg.Info, _eng=Cfg.eng)
+
+ReconGrain=ReconSingleGrain(grainOrien=Cfg.orien,
+        micfn=Cfg.micfn)
+
+x,y,con=ReconGrain.GetGrids()
+np.save(outname+'x.npy',x)
+np.save(outname+'y.npy',y)
+np.save(outname+'con.npy',con)
+AllMaxScore,AllMaxS=ReconGrain.ReconGrids(x,y,recon)
+np.save(outname+'allMaxScore.npy',AllMaxScore)
+np.save(outname+'allMaxS.npy',AllMaxS)
+realO,realS=ReconGrain.Transform2RealS(AllMaxS)
+np.save(outname+'realS.npy',realS)
+np.save(outname+'realO.npy',realO)

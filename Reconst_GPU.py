@@ -10,19 +10,15 @@ from scipy.linalg import polar
 from util.MicFileTool import read_mic_file
 import util.RotRep as Rot
 
-# variables for that specific grain and detector, in global namespace
-from InitStrain import Det1, g15Gs1_2nd, g15Info1_2nd, g15pos2nd, eng, g15orien2nd
-
-# In[2]:
 
 from pycuda.compiler import SourceModule
 
 class StrainReconstructor_GPU(object):
-    def __init__(self,_NumG=96,
-            bfPath='/home/yufengs/Strain/g15Ps1_2nd_bf',
-            fltPath='/home/yufengs/Strain/g15Ps1_2nd_filtered',
-            maxIntfn='AuxData/MaxInt_g15Ps1_2nd.npy',
-            _Det=Det1, _Gs=g15Gs1_2nd, _Info=g15Info1_2nd, _eng=eng):
+    def __init__(self,_NumG,
+            bfPath,
+            fltPath,
+            maxIntfn,
+            _Det, _Gs, _Info, _eng):
 
         with open('strain_device.cu','r') as cudaSrc:
             src=cudaSrc.read()
@@ -156,8 +152,8 @@ class StrainReconstructor_GPU(object):
 
 class ReconSingleGrain(object):
 
-    def __init__(self,grainOrien=[298.089, 65.4218, 42.9553],
-            micfn='AuxData/Ti7_WithHRM_2ndLoad_z1_.mic.LBFS'):
+    def __init__(self,grainOrien,
+            micfn):
         self.grainOrien=np.array(grainOrien)
         self.grainOrienM=Rot.EulerZXZ2Mat(np.array(grainOrien)/180.0*np.pi)
         self.micfn=micfn

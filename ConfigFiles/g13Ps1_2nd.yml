@@ -1,0 +1,55 @@
+# Experiment configurations
+Setup:
+    Energy: 51.9957 #keV
+    Eta-Limit: 81 #degree
+    Pixel-Size: 1.454 #micron
+    J-Center: 1182.19 #number of pixels
+    K-Center: 2026.27 #number of pixels
+    Distance: 7.14503 #mm
+    Tilt:   #degree
+        - 89.1588 
+        - 87.5647
+        - 0.278594
+    Omega-Range: #degree
+        - 0
+        - 180
+
+# Configuration for material
+
+Material:
+    Name: 'Ti7for2nd'
+    Lattice: #1e-10 m
+        - 2.95
+        - 2.95
+        - 4.7152
+    Atoms: #atom position and z number
+         -  - 1/3.0
+            - 2/3.0
+            - 1/4.0
+            - 22
+         -  - 2/3.0
+            - 1/3.0
+            - 3/4.0
+            - 22
+    MaxQ: 13
+
+
+# Configuration for grain
+
+Grain:
+    Pos: #mm 
+        - -0.253125
+        - 0.0097428
+        - 0.0
+    Orien: #degree, EulerZXZ
+        - 120.784
+        - 80.9295
+        - 246.202
+
+# Files and file path
+
+Files:
+    bf-folder: '/home/yufengs/workspace/g13Ps1_2nd_bf'
+    filtered-folder: '/home/yufengs/workspace/g13Ps1_2nd_filtered'
+    maxIntensity: 'AuxData/MaxInt_g13Ps1_2nd.npy'
+    micFile: 'AuxData/Ti7_WithHRM_2ndLoad_z1_.mic.LBFS'

@@ -1,16 +1,21 @@
 import numpy as np
+import time
 from Reconst_GPU import StrainReconstructor_GPU, ReconSingleGrain
 from InitStrain import Initializer
 
-outname='/home/yufengs/Strain/Results/dJ0dK0dD5dT0/g15_2nd/'
+start=time.time()
 
-Cfg=Initializer('ConfigFiles/g15Ps1_2nd.yml')
+outname='/home/yufengs/Strain/Results/dJ0dK-4dD0dT0/g15_2nd/'
+cfgFile='ConfigFiles/g15Ps1_2nd.yml'
+
+print("Start running \n Output Directory: " +outname+ "\n Configure File: "+cfgFile)
+Cfg=Initializer(cfgFile)
 
 Cfg.Simulate()
 
-Cfg.Move(dD=0.005)
+Cfg.Move(dK=-4)
 
-print(Cfg.NumG)
+print("Initialized")
 
 recon=StrainReconstructor_GPU( _NumG=Cfg.NumG,
         bfPath=Cfg.bfPath,
@@ -31,3 +36,6 @@ np.save(outname+'allMaxS.npy',AllMaxS)
 realO,realS=ReconGrain.Transform2RealS(AllMaxS)
 np.save(outname+'realS.npy',realS)
 np.save(outname+'realO.npy',realO)
+
+end=time.time()
+print("Time elapsed: {:f} seconds".format(end-start))

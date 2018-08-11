@@ -85,10 +85,10 @@ class StrainReconstructor_GPU(object):
         
         self.tGref.set_array(cuda.matrix_to_array(np.transpose(self.Gs).astype(np.float32),order='F'))
 
-    def CrossEntropyMethod(self,x,y,NumD=10000,numCut=100,MaxIter=100,S_init=np.eye(3),BlockSize=256):
+    def CrossEntropyMethod(self,x,y,NumD=10000,numCut=100,initStd=1e-4,MaxIter=100,S_init=np.eye(3),BlockSize=256):
 
         S=np.random.multivariate_normal(
-            np.zeros(9),np.eye(9)*1e-4,size=(NumD)).reshape((NumD,3,3),order='C')+np.tile(S_init,(NumD,1,1))
+            np.zeros(9),np.eye(9)*initStd,size=(NumD)).reshape((NumD,3,3),order='C')+np.tile(S_init,(NumD,1,1))
         
         SD=gpuarray.to_gpu(S.ravel().astype(np.float32))
 
@@ -180,7 +180,8 @@ class ReconSingleGrain(object):
                 AllMaxS.append(t[1])
             else:
                 t=reconstructor.CrossEntropyMethod(tmpxx[ii],tmpyy[ii],S_init=AllMaxS[-1])
-                print(ii,t[0])
+                if ii%50==0:
+                    print(ii,t[0])
                 AllMaxScore.append(t[2])
                 AllMaxS.append(t[1])
         return AllMaxScore, AllMaxS

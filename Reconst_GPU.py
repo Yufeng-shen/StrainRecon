@@ -24,6 +24,7 @@ class StrainReconstructor_GPU(object):
             src=cudaSrc.read()
         mod = SourceModule(src)
         self.sim_func = mod.get_function('Simulate_for_Strain')
+        self.sim_grain = mod.get_function('Simulate_for_Pos')
         self.hit_func = mod.get_function('Hit_Score')
         self.tExref = mod.get_texref("tcExpData")
         self.tGref = mod.get_texref('tfG')
@@ -55,11 +56,11 @@ class StrainReconstructor_GPU(object):
         afDetInfoH=np.concatenate([[2048,2048,0.001454,0.001454],
                                    _Det.CoordOrigin,_Det.Norm,_Det.Jvector,_Det.Kvector]).astype(np.float32)
         self.afDetInfoD=gpuarray.to_gpu(afDetInfoH)
-
-        self.initTEX()
+        self.ImLoaded=False
+        self.GsLoaded=False
 
     #transfer the ExpImgs and all Gs to texture memory
-    def initTEX(self):
+    def loadIm(self):
         AllIm=np.zeros(shape=(160,300,self.NumG*45),dtype=np.uint32,order='F')
         for ii in range(self.NumG):
             tmp=np.load(self.fltPath+'/Im{0:d}.npy'.format(ii))
@@ -82,10 +83,16 @@ class StrainReconstructor_GPU(object):
         copy.depth = shape[2]
         copy()
         self.tExref.set_array(ary)
-        
+        self.ImLoaded=True
+    def loadGs(self): 
         self.tGref.set_array(cuda.matrix_to_array(np.transpose(self.Gs).astype(np.float32),order='F'))
+        self.GsLoaded=True
 
     def CrossEntropyMethod(self,x,y,NumD=10000,numCut=100,initStd=1e-4,MaxIter=100,S_init=np.eye(3),BlockSize=256):
+        if self.ImLoaded==False:
+            self.loadIm()
+        if self.GsLoaded==False:
+            self.loadGs()
 
         S=np.random.multivariate_normal(
             np.zeros(9),np.eye(9)*initStd,size=(NumD)).reshape((NumD,3,3),order='C')+np.tile(S_init,(NumD,1,1))
@@ -149,6 +156,7 @@ class StrainReconstructor_GPU(object):
                 break
 
         return cov,mean,np.max(score)
+
 
 class ReconSingleGrain(object):
 

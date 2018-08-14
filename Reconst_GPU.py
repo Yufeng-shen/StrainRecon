@@ -53,6 +53,7 @@ class StrainReconstructor_GPU(object):
         self.MaxIntD=gpuarray.to_gpu(MaxInt.astype(np.float32))
 
         # Det parameters
+        self.Det=_Det
         afDetInfoH=np.concatenate([[2048,2048,0.001454,0.001454],
                                    _Det.CoordOrigin,_Det.Norm,_Det.Jvector,_Det.Kvector]).astype(np.float32)
         self.afDetInfoD=gpuarray.to_gpu(afDetInfoH)
@@ -88,6 +89,13 @@ class StrainReconstructor_GPU(object):
         self.tGref.set_array(cuda.matrix_to_array(np.transpose(self.Gs).astype(np.float32),order='F'))
         self.GsLoaded=True
 
+    def MoveDet(self,dJ=0,dK=0,dD=0,dT=np.eye(3)):
+        self.Det.Move(dJ,dK,np.array([dD,0,0]),dT)
+        afDetInfoH=np.concatenate([[2048,2048,0.001454,0.001454],
+                                   self.Det.CoordOrigin,self.Det.Norm,
+                                   self.Det.Jvector,self.Det.Kvector]).astype(np.float32)
+        self.afDetInfoD=gpuarray.to_gpu(afDetInfoH)
+
     def CrossEntropyMethod(self,x,y,NumD=10000,numCut=100,initStd=1e-4,MaxIter=100,S_init=np.eye(3),BlockSize=256):
         if self.ImLoaded==False:
             self.loadIm()
@@ -115,7 +123,7 @@ class StrainReconstructor_GPU(object):
 
         self.hit_func(scoreD,
                 XD,YD,OffsetD,MaskD,TrueMaskD,
-                self.MaxIntD,self.afDetInfoD,np.int32(self.NumG),np.int32(NumD),np.int32(45),
+                self.MaxIntD,np.int32(self.NumG),np.int32(NumD),np.int32(45),
                 block=(BlockSize,1,1),grid=(int(NumD/BlockSize+1),1))
         
         score=scoreD.get()
@@ -141,7 +149,7 @@ class StrainReconstructor_GPU(object):
 
             self.hit_func(scoreD,
                     XD,YD,OffsetD,MaskD,TrueMaskD,
-                    self.MaxIntD,self.afDetInfoD,np.int32(self.NumG),np.int32(NumD),np.int32(45),
+                    self.MaxIntD,np.int32(self.NumG),np.int32(NumD),np.int32(45),
                     block=(BlockSize,1,1),grid=(int(NumD/BlockSize+1),1))
 
 

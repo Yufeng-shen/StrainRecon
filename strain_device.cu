@@ -204,7 +204,7 @@ __global__ void Simulate_for_Pos(int *aiX, int *aiY, int *aiOffset, bool *abMask
 __global__ void Hit_Score(float *afscore,
 		const int *aiX, const int *aiY, const int *aiOffset, const bool *abMask, const bool *abtrueMask,
 		const float* __restrict__ MaxInten,
-		const float* __restrict__ afDetInfo, int iNumG, int iNumD, int iNumFrame){
+		 int iNumG, int iNumD, int iNumFrame){
 	/*
 	 * 100x100 voxel takes 13.8123515625s
 	 * This version using texture memory to storage tcExpData

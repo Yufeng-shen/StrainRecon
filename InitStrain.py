@@ -64,5 +64,3 @@ class Initializer(object):
                 omegaU=self.omgRange[1],**(self.exp))
         self.NumG=len(self.Gs)
 
-    def Move(self,dJ=0,dK=0,dD=0,dT=np.eye(3)):
-        self.Det.Move(dJ,dK,np.array([dD,0,0]),dT)

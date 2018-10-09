@@ -63,15 +63,20 @@ def frankie_angles_from_g( g ,verbo=True, **exp ):
 	'omega_a':omega_res1*180/np.pi,'omega_b':omega_res2*180/np.pi,'omega_0':omega_0*180/np.pi}
 
 class Detector:
-    def __init__(self,psize=0.00148,pn=2048):
+    def __init__(self,psizeJ=0.00148,psizeK=0.00148,pnJ=2048,pnK=2048,J=0,K=0,trans=np.array([0,0,0]),tilt=np.eye(3)):
         self.__Norm=np.array([0,0,1])
         self.__CoordOrigin=np.array([0.,0.,0.])
         self.__Jvector=np.array([1,0,0])
         self.__Kvector=np.array([0,-1,0])
-        self.__PixelJ=psize
-        self.__PixelK=psize
-        self.__NPixelJ=pn
-        self.__NPixelK=pn
+        self.__PixelJ=psizeJ
+        self.__PixelK=psizeK
+        self.__NPixelJ=pnJ
+        self.__NPixelK=pnK
+        self.__J0=J
+        self.__K0=K
+        self.__trans0=trans
+        self.__tilt0=tilt
+        self.Move(J,K,trans,tilt)
     @property
     def CoordOrigin(self):
         return self.__CoordOrigin
@@ -134,7 +139,8 @@ class Detector:
     def Idx2LabCord(self,J,K):
         return J*self.__PixelJ*self.__Jvector+K*self.__PixelK*self.__Kvector+self.__CoordOrigin
     def Reset(self):
-        self.__init__()
+        self.__init__(psizeJ=self.__PixelJ,psizeK=self.__PixelK,pnJ=self.__NPixelJ,pnK=self.__NPixelK,
+                J=self.__J0,K=self.__K0,trans=self.__trans0,tilt=self.__tilt0)
     def Print(self):
         print( "Norm: ",self.__Norm)
         print( "CoordOrigin: ",self.__CoordOrigin)

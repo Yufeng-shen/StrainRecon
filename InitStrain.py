@@ -29,11 +29,12 @@ class Initializer(object):
         # Detector parameters
         ########################
 
-        self.Det=Gsim.Detector(psize=dataMap['Setup']['Pixel-Size']/1000.0)
-        self.Det.Move(dataMap['Setup']['J-Center'],
-                dataMap['Setup']['K-Center'],
-                np.array([dataMap['Setup']['Distance'],0,0]),
-                Rot.EulerZXZ2Mat(np.array(dataMap['Setup']['Tilt'])/180.0*np.pi))
+        self.Det=Gsim.Detector(psizeJ=dataMap['Setup']['Pixel-Size']/1000.0,
+                psizeK=dataMap['Setup']['Pixel-Size']/1000.0,
+                J=dataMap['Setup']['J-Center'],
+                K=dataMap['Setup']['K-Center'],
+                trans=np.array([dataMap['Setup']['Distance'],0,0]),
+                tilt=Rot.EulerZXZ2Mat(np.array(dataMap['Setup']['Tilt'])/180.0*np.pi))
 
         #########################
         # LP

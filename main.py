@@ -2,18 +2,21 @@ import numpy as np
 import time
 from Reconst_GPU import StrainReconstructor_GPU, ReconSingleGrain
 from InitStrain import Initializer
+import os
 
 start=time.time()
 
-outname='/home/yufengs/Strain/Results/dJ0dK-4dD0dT0/g15_2nd/'
+outname='/home/yufengs/Results/g15_2nd/'
 cfgFile='ConfigFiles/g15Ps1_2nd.yml'
+
+if not os.path.exists(outname):
+    os.makedirs(outname)
 
 print("Start running \n Output Directory: " +outname+ "\n Configure File: "+cfgFile)
 Cfg=Initializer(cfgFile)
 
 Cfg.Simulate()
 
-Cfg.Move(dK=-4)
 
 print("Initialized")
 

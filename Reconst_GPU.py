@@ -95,6 +95,12 @@ class StrainReconstructor_GPU(object):
                                    self.Det.CoordOrigin,self.Det.Norm,
                                    self.Det.Jvector,self.Det.Kvector]).astype(np.float32)
         self.afDetInfoD=gpuarray.to_gpu(afDetInfoH)
+    def ResetDet(self):
+        self.Det.Reset()
+        afDetInfoH=np.concatenate([[2048,2048,0.001454,0.001454],
+                                   self.Det.CoordOrigin,self.Det.Norm,
+                                   self.Det.Jvector,self.Det.Kvector]).astype(np.float32)
+        self.afDetInfoD=gpuarray.to_gpu(afDetInfoH)
 
     def CrossEntropyMethod(self,x,y,NumD=10000,numCut=100,initStd=1e-4,MaxIter=100,S_init=np.eye(3),BlockSize=256):
         if self.ImLoaded==False:

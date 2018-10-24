@@ -102,7 +102,7 @@ class StrainReconstructor_GPU(object):
                                    self.Det.Jvector,self.Det.Kvector]).astype(np.float32)
         self.afDetInfoD=gpuarray.to_gpu(afDetInfoH)
 
-    def CrossEntropyMethod(self,x,y,NumD=10000,numCut=100,initStd=1e-4,MaxIter=100,S_init=np.eye(3),BlockSize=256):
+    def CrossEntropyMethod(self,x,y,NumD=10000,numCut=100,initStd=1e-4,MaxIter=100,S_init=np.eye(3),BlockSize=256,debug=False):
         if self.ImLoaded==False:
             self.loadIm()
         if self.GsLoaded==False:
@@ -164,6 +164,8 @@ class StrainReconstructor_GPU(object):
             args=np.argpartition(score,-numCut)[-numCut:]
             cov=np.cov(S[args].reshape((numCut,9),order='C').T)
             mean=np.mean(S[args],axis=0)
+            if debug:
+                print(np.max(score))
             if np.trace(np.absolute(cov))<1e-9:
                 break
             if np.min(score)==np.max(score):
@@ -180,16 +182,32 @@ class ReconSingleGrain(object):
         self.grainOrienM=Rot.EulerZXZ2Mat(np.array(grainOrien)/180.0*np.pi)
         self.micfn=micfn
 
-    def GetGrids(self,threshold=1):
-        sw,snp=read_mic_file(self.micfn)
-        t=snp[:,6:9]-np.tile(np.array(self.grainOrien),(snp.shape[0],1)) #g15Ps1_2nd
-        t=np.absolute(t)<threshold
-        t=t[:,0]*t[:,1]*t[:,2] #voxels that within 1 degree misorientation
-        t=snp[t]
-        x=t[:,0]
-        y=t[:,1]
-        con=t[:,9]
+    def GetGrids(self,threshold=1,mode='mic'):
+        if mode=='mic':
+            sw,snp=read_mic_file(self.micfn)
+            t=snp[:,6:9]-np.tile(np.array(self.grainOrien),(snp.shape[0],1))
+            t=np.absolute(t)<threshold
+            t=t[:,0]*t[:,1]*t[:,2] #voxels that within 1 degree misorientation
+            t=snp[t]
+            x=t[:,0]
+            y=t[:,1]
+            con=t[:,9]
+        elif mode=='ang':
+            snp=np.loadtxt(self.micfn)
+            t=snp[:,2:5]-np.tile(np.array(self.grainOrien),(snp.shape[0],1))
+            t=t[:,0]*t[:,1]*t[:,2]
+            t=snp[t]
+            x=t[:,0]
+            y=t[:,1]
+            con=t[:,5]
+        else:
+            print('mode need to be mic or ang')
         return x,y,con
+
+    def test(self,tmpxx,tmpyy,reconstructor,totalTry=10000,cutTry=100,initStd=1e-4,MaxIter=100):
+        idx=np.random.randint(len(tmpxx))
+        reconstructor.CrossEntropyMethod(tmpxx[idx],tmpyy[idx],NumD=totalTry,numCut=cutTry,initStd=initStd,MaxIter=MaxIter,debug=True)
+        return
 
     def ReconGrids(self,tmpxx,tmpyy,reconstructor):
         AllMaxScore=[]
@@ -201,7 +219,8 @@ class ReconSingleGrain(object):
                 AllMaxScore.append(t[2])
                 AllMaxS.append(t[1])
             else:
-                t=reconstructor.CrossEntropyMethod(tmpxx[ii],tmpyy[ii],S_init=AllMaxS[-1])
+#                t=reconstructor.CrossEntropyMethod(tmpxx[ii],tmpyy[ii],S_init=AllMaxS[-1])
+                t=reconstructor.CrossEntropyMethod(tmpxx[ii],tmpyy[ii])
                 if ii%50==0:
                     print(ii,t[0])
                 AllMaxScore.append(t[2])

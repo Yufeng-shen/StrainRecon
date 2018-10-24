@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 from matplotlib.patches import Polygon
 from matplotlib.collections import PatchCollection
 from matplotlib.collections import PolyCollection
-import RotRep
+from . import RotRep
 
 def dist_to_line(point,line):
     '''

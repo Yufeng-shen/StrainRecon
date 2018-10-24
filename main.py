@@ -6,8 +6,8 @@ import os
 
 start=time.time()
 
-outname='/home/yufengs/Results/g15_2nd/'
-cfgFile='ConfigFiles/g15Ps1_2nd.yml'
+outname='/home/yufengs/Results/g13_2nd/'
+cfgFile='ConfigFiles/g13Ps1_2nd.yml'
 
 if not os.path.exists(outname):
     os.makedirs(outname)
@@ -28,7 +28,7 @@ recon=StrainReconstructor_GPU( _NumG=Cfg.NumG,
 
 ReconGrain=ReconSingleGrain(grainOrien=Cfg.orien,
         micfn=Cfg.micfn)
-
+################################
 x,y,con=ReconGrain.GetGrids()
 np.save(outname+'x.npy',x)
 np.save(outname+'y.npy',y)
@@ -39,6 +39,11 @@ np.save(outname+'allMaxS.npy',AllMaxS)
 realO,realS=ReconGrain.Transform2RealS(AllMaxS)
 np.save(outname+'realS.npy',realS)
 np.save(outname+'realO.npy',realO)
+
+##############################
+#x,y,con=ReconGrain.GetGrids()
+#ReconGrain.test(x,y,recon)
+
 
 end=time.time()
 print("Time elapsed: {:f} seconds".format(end-start))

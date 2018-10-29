@@ -206,23 +206,7 @@ __global__ void Hit_Score(float *afscore,
 		const float* __restrict__ MaxInten,
 		 int iNumG, int iNumD, int iNumFrame){
 	/*
-	 * 100x100 voxel takes 13.8123515625s
-	 * This version using texture memory to storage tcExpData
-	 * this version optimize some detail, runs faster than hitratio_multi_detector_old_backup, no error so far.
-	 * now 100x100 takes 15s
-	 * If set block=(16,1,1) 100x100 will reach 25s.
-	 * 100x100 31s, original: 43s, improved!
-	 * calculate hit ratio with multiple detector input
-	 * consider as hit only when the peak hit all the detectors
-	 * acExpDetImages: Sigma_i(iNDet*iNRot*NPixelJ[i]*NPixelK[i]),i for different detector matrix, 1 for peak, 0 for no peak;
-	 * aiDetStartIdx:   index of Detctor start postition in self.acExpDetImages,
-	 * 					e.g. 3 detectors with size 2048x2048, 180 rotations,
-	 * 			 		aiDetStartIdx = [0,180*2048*2048,2*180*2048*2048]
-	 * aiJ: iNVoxel*iNOrientation*iNG*2*iDet ,2 is for omega1 and omega2
-	 * afHitRatio: iNVoxel*iNOrientation: #hitpeak/#allDiffractPeak
-	 * aiHitCnt: iNVoxel*iNOrientation: number of all diffraction Peaks hit on detector in the simulation
 	 */
-	 //printf("start hitratio ||");
 	int i=blockIdx.x*blockDim.x+threadIdx.x;
 	if(i < iNumD){
 		afscore[i]=0;

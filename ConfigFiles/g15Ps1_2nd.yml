@@ -52,4 +52,4 @@ Files:
     bf-folder: '/home/yufengs/workspace/g15Ps1_2nd_bf'
     filtered-folder: '/home/yufengs/workspace/g15Ps1_2nd_filtered'
     maxIntensity: 'AuxData/MaxInt_g15Ps1_2nd.npy'
-    micFile: 'AuxData/Ti7_WithHRM_2ndLoad_z1_.mic.LBFS'
+    micFile: 'AuxData/Ti7_WithHRM_2ndLoad_z1_.txt.ang'

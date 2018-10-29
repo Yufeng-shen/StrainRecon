@@ -182,7 +182,7 @@ class ReconSingleGrain(object):
         self.grainOrienM=Rot.EulerZXZ2Mat(np.array(grainOrien)/180.0*np.pi)
         self.micfn=micfn
 
-    def GetGrids(self,threshold=1,mode='mic'):
+    def GetGrids(self,threshold=1,mode='ang'):
         if mode=='mic':
             sw,snp=read_mic_file(self.micfn)
             t=snp[:,6:9]-np.tile(np.array(self.grainOrien),(snp.shape[0],1))
@@ -195,6 +195,7 @@ class ReconSingleGrain(object):
         elif mode=='ang':
             snp=np.loadtxt(self.micfn)
             t=snp[:,2:5]-np.tile(np.array(self.grainOrien),(snp.shape[0],1))
+            t=np.absolute(t)<threshold
             t=t[:,0]*t[:,1]*t[:,2]
             t=snp[t]
             x=t[:,0]

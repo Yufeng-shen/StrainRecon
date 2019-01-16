@@ -9,15 +9,15 @@ import numpy as np
 from scipy.linalg import polar
 from util.MicFileTool import read_mic_file
 import util.RotRep as Rot
+from InitStrain import Initializer
+import h5py
 
 
 from pycuda.compiler import SourceModule
 
 class StrainReconstructor_GPU(object):
     def __init__(self,_NumG,
-            bfPath,
-            fltPath,
-            maxIntfn,
+            peakFile,
             _Det, _Gs, _Info, _eng):
 
         with open('strain_device.cu','r') as cudaSrc:
@@ -30,13 +30,14 @@ class StrainReconstructor_GPU(object):
         self.tGref = mod.get_texref('tfG')
         self.Gs= _Gs
         self.eng= _eng
-        self.fltPath= fltPath
         # Number of G vectors
         self.NumG= _NumG
+        self.peakFile=peakFile
         ## Lim for window position
-        Lim=[]
-        for ii in range(_NumG):
-            Lim.append(np.load(bfPath+'/limit{0:d}.npy'.format(ii))[0])
+        Lim=np.array(peakFile['limits'])
+#        Lim=[]
+#        for ii in range(_NumG):
+#            Lim.append(np.load(bfPath+'/limit{0:d}.npy'.format(ii))[0])
         Lim=np.array(Lim).astype(np.int32)
         self.LimD=gpuarray.to_gpu(Lim)
         ## whichOmega for choosing between omega1 and omega2
@@ -49,7 +50,7 @@ class StrainReconstructor_GPU(object):
         self.whichOmegaD=gpuarray.to_gpu(whichOmega)
         # MaxInt for normalize the weight of each spot 
         #(because different spots have very different intensity but we want them equal weighted) 
-        MaxInt=np.load(maxIntfn)
+        MaxInt=np.array(peakFile['MaxInt'])
         self.MaxIntD=gpuarray.to_gpu(MaxInt.astype(np.float32))
 
         # Det parameters
@@ -64,8 +65,10 @@ class StrainReconstructor_GPU(object):
     def loadIm(self):
         AllIm=np.zeros(shape=(160,300,self.NumG*45),dtype=np.uint32,order='F')
         for ii in range(self.NumG):
-            tmp=np.load(self.fltPath+'/Im{0:d}.npy'.format(ii))
-            tmp=np.moveaxis(tmp, 0, 2)
+#            tmp=np.load(self.fltPath+'/Im{0:d}.npy'.format(ii))
+#            tmp=np.moveaxis(tmp, 0, 2)
+#            AllIm[:tmp.shape[0],:tmp.shape[1],ii*45:(ii+1)*45]=tmp
+            tmp=np.array(self.peakFile['Imgs']['Im{0:d}'.format(ii)])
             AllIm[:tmp.shape[0],:tmp.shape[1],ii*45:(ii+1)*45]=tmp
         shape=AllIm.shape
         descr = cuda.ArrayDescriptor3D()
@@ -126,12 +129,11 @@ class StrainReconstructor_GPU(object):
                  block=(self.NumG,1,1),grid=(NumD,1))
         
         scoreD=gpuarray.empty(NumD,dtype=np.float32)
-
         self.hit_func(scoreD,
                 XD,YD,OffsetD,MaskD,TrueMaskD,
                 self.MaxIntD,np.int32(self.NumG),np.int32(NumD),np.int32(45),
                 block=(BlockSize,1,1),grid=(int(NumD/BlockSize+1),1))
-        
+         
         score=scoreD.get()
         args=np.argpartition(score,-numCut)[-numCut:]
         cov=np.cov(S[args].reshape((numCut,9),order='C').T)
@@ -176,14 +178,21 @@ class StrainReconstructor_GPU(object):
 
 class ReconSingleGrain(object):
 
-    def __init__(self,grainOrien,
-            micfn):
-        self.grainOrien=np.array(grainOrien)
-        self.grainOrienM=Rot.EulerZXZ2Mat(np.array(grainOrien)/180.0*np.pi)
-        self.micfn=micfn
+    def __init__(self,cfgFile,outdir):
+        self.Cfg=Initializer(cfgFile)
+        self.peakFile=h5py.File(self.Cfg.peakfn,'r')
+        self.Cfg.SetPosOrien(self.peakFile['Pos'],self.peakFile['Orien'])
+        self.Cfg.Simulate()
+        self.grainOrien=np.array(self.Cfg.orien)
+        self.grainOrienM=Rot.EulerZXZ2Mat(self.grainOrien/180.0*np.pi)
+        self.micfn=self.Cfg.micfn
+        self.recon=StrainReconstructor_GPU(_NumG=self.Cfg.NumG,
+                peakFile=self.peakFile,
+                _Det=self.Cfg.Det, _Gs=self.Cfg.Gs, _Info=self.Cfg.Info, _eng=self.Cfg.eng)
+        self.outdir=outdir
 
-    def GetGrids(self,threshold=1,mode='ang'):
-        if mode=='mic':
+    def GetGrids(self,threshold=1,fileType='npy',orig=[-0.256,-0.256],step=[0.002,0.002],gid=40):
+        if fileType=='mic':
             sw,snp=read_mic_file(self.micfn)
             t=snp[:,6:9]-np.tile(np.array(self.grainOrien),(snp.shape[0],1))
             t=np.absolute(t)<threshold
@@ -192,8 +201,8 @@ class ReconSingleGrain(object):
             x=t[:,0]
             y=t[:,1]
             con=t[:,9]
-        elif mode=='ang':
-            snp=np.loadtxt(self.micfn)
+        elif fileType=='ang':
+            snp=np.loadtxt(self.micfn,comments="#")
             t=snp[:,2:5]-np.tile(np.array(self.grainOrien),(snp.shape[0],1))
             t=np.absolute(t)<threshold
             t=t[:,0]*t[:,1]*t[:,2]
@@ -201,13 +210,25 @@ class ReconSingleGrain(object):
             x=t[:,0]
             y=t[:,1]
             con=t[:,5]
+        elif fileType=='npy':
+            FakeSample=np.load(self.micfn)
+            GIDLayer=FakeSample[7].astype(int)
+            tmpx=np.arange(orig[0],step[0]*GIDLayer.shape[0]+orig[0],step[0])
+            tmpy=np.arange(orig[1],step[1]*GIDLayer.shape[1]+orig[1],step[1])
+            xv,yv=np.meshgrid(tmpx,tmpy)
+            idx=np.where(GIDLayer==gid)
+            x=xv[idx]
+            y=yv[idx]
+            con=np.ones(x.shape)
         else:
-            print('mode need to be mic or ang')
+            print('fileType need to be mic or ang or npy')
         return x,y,con
 
-    def test(self,tmpxx,tmpyy,reconstructor,totalTry=10000,cutTry=100,initStd=1e-4,MaxIter=100):
+    def test(self,tmpxx,tmpyy,reconstructor,totalTry=10000,cutTry=100,initStd=1e-4,MaxIter=1):
         idx=np.random.randint(len(tmpxx))
-        reconstructor.CrossEntropyMethod(tmpxx[idx],tmpyy[idx],NumD=totalTry,numCut=cutTry,initStd=initStd,MaxIter=MaxIter,debug=True)
+        reconstructor.CrossEntropyMethod(tmpxx[idx],tmpyy[idx],
+                NumD=totalTry,numCut=cutTry,initStd=initStd,
+                MaxIter=MaxIter,debug=True)
         return
 
     def ReconGrids(self,tmpxx,tmpyy,reconstructor):
@@ -238,4 +259,14 @@ class ReconSingleGrain(object):
             realO[ii],realS[ii]=polar(t,'left')
         return realO, realS
 
-
+    def run(self):
+        x,y,con=self.GetGrids()
+        np.save(self.outdir+'/x.npy',x)
+        np.save(self.outdir+'/y.npy',y)
+        np.save(self.outdir+'/con.npy',con)
+        AllMaxScore,AllMaxS=self.ReconGrids(x,y,self.recon)
+        np.save(self.outdir+'/allMaxScore.npy',AllMaxScore)
+        np.save(self.outdir+'/allMaxS.npy',AllMaxS)
+        realO,realS=self.Transform2RealS(AllMaxS)
+        np.save(self.outdir+'/realS.npy',realS)
+        np.save(self.outdir+'/realO.npy',realO)

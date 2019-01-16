@@ -14,9 +14,7 @@ class Initializer(object):
         ##############
         # Files
         ##############
-        self.bfPath=dataMap['Files']['bf-folder']
-        self.fltPath=dataMap['Files']['filtered-folder']
-        self.maxIntfn=dataMap['Files']['maxIntensity']
+        self.peakfn=dataMap['Files']['peakFile']
         self.micfn=dataMap['Files']['micFile']
 
 
@@ -49,12 +47,6 @@ class Initializer(object):
         self.Ti7LP.getRecipVec()
         self.Ti7LP.getGs(dataMap['Material']['MaxQ'])
 
-        ##########################################
-        # Grain
-        ##########################################
-        self.pos=np.array(dataMap['Grain']['Pos'])
-        self.orien=dataMap['Grain']['Orien']
-        self.orienM=Rot.EulerZXZ2Mat(np.array(self.orien)/180.0*np.pi)
 
 
     def Simulate(self):
@@ -64,4 +56,8 @@ class Initializer(object):
                 omegaL=self.omgRange[0],
                 omegaU=self.omgRange[1],**(self.exp))
         self.NumG=len(self.Gs)
-
+    
+    def SetPosOrien(self,pos,orien):
+        self.pos=np.array(pos)
+        self.orien=np.array(orien)
+        self.orienM=Rot.EulerZXZ2Mat(self.orien/180.0*np.pi)

@@ -99,10 +99,17 @@ class StrainSimulator_GPU(object):
 
 class SimAllGrains(object):
 
-    def __init__(self,cfgFile,outdir,orig=[-0.256,-0.256],step=[0.002,0.002],scale=10,factor=40):
+    def __init__(self,cfgFile,outdir,orig=[-0.256,-0.256],step=[0.002,0.002],scale=10,factor=40,blur=True):
+        """
+        scale: refine the grid by 'scale' times
+        factor: multiply the strain by 'factor'
+        """
         self.Cfg=Initializer(cfgFile)
         self.FakeSample=np.load(self.Cfg.micfn)
         self.outdir=outdir
+        self.scale=scale
+        self.factor=factor
+        self.blur=blur
         # create a finer grid for more realistic simulation
         FakeSample=self.FakeSample
         finerDilation=zoom(FakeSample[0],zoom=scale,order=0)*factor
@@ -192,7 +199,9 @@ class SimAllGrains(object):
         Xs,Ys,Os,Mask=simulator.Simulate(xs,ys,ss,len(xs))
 
         if outputfn==None:
-            outputfn=self.outdir+'/grain_{0:d}.hdf5'.format(gid)
+            outputfn=self.outdir+'/grain_{0:d}_sca{1:d}_fac{2:d}.hdf5'.format(gid,self.scale,self.factor)
+        else:
+            outputfn=self.outdir+outputfn
         f=h5py.File(outputfn,'w')
         f.create_dataset("limits",data=Lims)
         f.create_dataset("Pos",data=self.Positions[gid])
@@ -223,7 +232,10 @@ class SimAllGrains(object):
         f.create_dataset("MaxInt",data=MaxInt)
 
     def GaussianBlur(self,myMap):
-        return gaussian_filter(myMap,sigma=1,mode='nearest',truncate=4)
+        if self.blur==False:
+            return myMap
+        else:
+            return gaussian_filter(myMap,sigma=1,mode='nearest',truncate=4)
 
     def Transform2RealS(self,AllMaxS):
         AllMaxS=np.array(AllMaxS)

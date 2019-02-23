@@ -8,40 +8,56 @@ import argparse
 
 def parse_arguments():
     parser= argparse.ArgumentParser()
-    parser.add_argument('--mode',dest='mode',type=str,default='sim')
+    parser.add_argument('--mode',dest='mode',type=str,default='sim',
+            help="either 'sim' or 'rec'")
     parser.add_argument('--outdir',dest='outdir',type=str,
-            default='/home/yufengs/results/g13_2nd/',
+            default=None,
             help="Path for the output files, end with '/'")
     parser.add_argument('--cfgFile',dest='cfgFile',type=str,
-            default='ConfigFiles/g13Ps1_2nd.yml',
+            default=None,
             help="Configure file name")
     return parser.parse_args()
 
 def main(args):
     args=parse_arguments()
-    start=time.time()
 
     outdir=args.outdir
     cfgFile=args.cfgFile
     mode=args.mode
 
     if mode=='rec':
+        if cfgFile==None:
+            cfgFile='ConfigFiles/g40.yml'
+        if outdir==None:
+            outdir='/home/yufengs/SimData/g40/'
         if not os.path.exists(outdir):
             os.makedirs(outdir)
         print("Start reconstructing \n Output Directory: " +outdir+ "\n Configure File: "+cfgFile)
         rec=ReconSingleGrain(cfgFile,outdir)
+        start=time.time()
         rec.run()
+        end=time.time()
+        print("Time elapsed: {:f} seconds".format(end-start))
     elif mode=='sim':
+        if cfgFile==None:
+            cfgFile='ConfigFiles/sim.yml'
+        if outdir==None:
+            outdir='/home/yufengs/SimData/'
         if not os.path.exists(outdir):
             os.makedirs(outdir)
         print("Start simulating \n Output Directory: " +outdir+ "\n Configure File: "+cfgFile)
-        sim=SimAllGrains(cfgFile,outdir)
-        sim.SimSingleGrain(40)
+        while True:
+            choice = input("Proceed?(y/n) ")
+            if choice == 'y' or choice == 'Y' :
+                start=time.time()
+                sim=SimAllGrains(cfgFile,outdir,scale=10,factor=20,blur=False)
+                sim.SimSingleGrain(40,outputfn='grain40_sca10_fac40_noblur.hdf5')
+                break
+            elif choice== 'n' or choice =='N':
+                break
 
 
 
-    end=time.time()
-    print("Time elapsed: {:f} seconds".format(end-start))
 
 
 if __name__=='__main__':

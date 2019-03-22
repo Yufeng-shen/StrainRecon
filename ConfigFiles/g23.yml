@@ -38,5 +38,5 @@ Material:
 # Files and file path
 
 Files:
-    peakFile: '/home/yufengs/SimData/grain_23.hdf5'
+    peakFile: '/home/yufengs/SimData/grain_23_fac20.hdf5'
     micFile: 'AuxData/Ti7FFT.npy'

@@ -24,7 +24,7 @@ class StrainReconstructor_GPU(object):
             src=cudaSrc.read()
         mod = SourceModule(src)
         self.sim_func = mod.get_function('Simulate_for_Strain')
-        self.sim_grain = mod.get_function('Simulate_for_Pos')
+        self.KL_func = mod.get_function('KL_diff')
         self.hit_func = mod.get_function('Hit_Score')
         self.tExref = mod.get_texref("tcExpData")
         self.tGref = mod.get_texref('tfG')

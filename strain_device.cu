@@ -224,6 +224,54 @@ __global__ void Hit_Score(float *afscore,
 	}
 }
 
+__global__ void KL_total(float *afKL,
+		const float *realMapLog, const float *fakeMap,int jj, int iNumG, int iNumFrame){
+	int j=threadIdx.x;
+	int i=blockIdx.x;
+	if(i<300*160&& j<iNumFrame){
+		uint pixelIdx=i*iNumG*iNumFrame+j+jj*iNumFrame;
+		float fake=fakeMap[pixelIdx];
+		float realLog=realMapLog[pixelIdx];
+		afKL[i+j*300*160]=fake*logf(fake)-fake*realLog;
+	}
+}
+
+__global__ void KL_ChangeOne(const int *aiX, const int *aiY, const int *aiOffset, const bool *abMask, const bool *abtrueMask,
+		float *fakeMap,
+		int iNumG, int iNumFrame,float epsilon, int one){
+	int i=blockIdx.x*blockDim.x+threadIdx.x;// id of G vector
+	if(i<iNumG){
+		if(abMask[i] && abtrueMask[i]){
+			uint pixelIdx=aiY[i]*300*iNumG*iNumFrame+aiX[i]*iNumG*iNumFrame+aiOffset[i]+iNumFrame*i;
+			fakeMap[pixelIdx]=fmaxf(fakeMap[pixelIdx]+one,epsilon);
+		}
+	}
+}
+
+
+__global__ void KL_diff(float *afKLdiff,
+		const int *aiX, const int *aiY, const int *aiOffset, const bool *abMask, const bool *abtrueMask,
+		const float *realMapLog, const float *fakeMap,
+		int iNumG, int iNumD, int iNumFrame){
+	int i=blockIdx.x * blockDim.x + threadIdx.x; // id of distortion matrix
+	if(i<iNumD){
+		afKLdiff[i]=0;
+		for(int jj=0;jj<iNumG;jj++){
+			float ftmp;
+			uint tmpIdx=i*iNumG+jj;
+			if(!abtrueMask[tmpIdx]){ftmp=0.0;}//hit outside of Detector
+			else if(!abMask[tmpIdx]){ftmp=10;}//hit outside of Window
+			else{
+				uint pixelIdx=aiY[tmpIdx]*300*iNumG*iNumFrame+aiX[tmpIdx]*iNumG*iNumFrame+aiOffset[tmpIdx]+iNumFrame*jj;
+				float fake=fakeMap[pixelIdx];
+				float realLog=realMapLog[pixelIdx];
+				ftmp=(fake+1)*logf(fake+1)-realLog-fake*logf(fake);
+			}
+			afKLdiff[i]+=ftmp;
+		}
+	}
+}
+
 __global__ void display_rand(float* afRandom, int iNRand){
         int i = blockIdx.x*blockDim.x + threadIdx.x;
         printf("=%d=",i);

@@ -16,6 +16,8 @@ def parse_arguments():
     parser.add_argument('--cfgFile',dest='cfgFile',type=str,
             default=None,
             help="Configure file name")
+    parser.add_argument('--gid',dest='gid',type=int,default=None,
+            help="the grain ID to be simulated")
     return parser.parse_args()
 
 def main(args):
@@ -24,6 +26,7 @@ def main(args):
     outdir=args.outdir
     cfgFile=args.cfgFile
     mode=args.mode
+    gid=args.gid
 
     if mode=='rec':
         if cfgFile==None:
@@ -45,13 +48,15 @@ def main(args):
             outdir='/home/yufengs/SimData/'
         if not os.path.exists(outdir):
             os.makedirs(outdir)
+        if gid==None:
+            gid=40
         print("Start simulating \n Output Directory: " +outdir+ "\n Configure File: "+cfgFile)
         while True:
             choice = input("Proceed?(y/n) ")
             if choice == 'y' or choice == 'Y' :
                 start=time.time()
-                sim=SimAllGrains(cfgFile,outdir,scale=10,factor=20,blur=False)
-                sim.SimSingleGrain(40,outputfn='grain40_sca10_fac40_noblur.hdf5')
+                sim=SimAllGrains(cfgFile,outdir,scale=10,factor=20,blur=True)
+                sim.SimSingleGrain(gid,outputfn=None)
                 break
             elif choice== 'n' or choice =='N':
                 break

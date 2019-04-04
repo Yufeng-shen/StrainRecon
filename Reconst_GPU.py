@@ -12,6 +12,11 @@ import util.RotRep as Rot
 from InitStrain import Initializer
 import h5py
 
+from Simulator_GPU import StrainSimulator_GPU
+from collections import Counter
+from scipy.sparse import coo_matrix
+from scipy.ndimage import gaussian_filter
+
 
 from pycuda.compiler import SourceModule
 
@@ -24,7 +29,9 @@ class StrainReconstructor_GPU(object):
             src=cudaSrc.read()
         mod = SourceModule(src)
         self.sim_func = mod.get_function('Simulate_for_Strain')
-        self.KL_func = mod.get_function('KL_diff')
+        self.KL_total_func = mod.get_function('KL_total')
+        self.KL_diff_func = mod.get_function('KL_diff')
+        self.KL_One_func = mod.get_function('KL_ChangeOne')
         self.hit_func = mod.get_function('Hit_Score')
         self.tExref = mod.get_texref("tcExpData")
         self.tGref = mod.get_texref('tfG')
@@ -174,11 +181,76 @@ class StrainReconstructor_GPU(object):
                 break
 
         return cov,mean,np.max(score)
+    
+    def ChangeOneVoxel_KL(self,x,y,mean,realMapsLogD,falseMapsD,
+            NumD=1000,numCut=50,cov=1e-7*np.eye(9),epsilon=1e-6,MaxIter=4,BlockSize=256,debug=False):
+        #remove the original hit
+        S=mean
+        SD=gpuarray.to_gpu(S.ravel().astype(np.float32))
+        XD=gpuarray.empty(self.NumG,dtype=np.int32)
+        YD=gpuarray.empty(self.NumG,dtype=np.int32)
+        OffsetD=gpuarray.empty(self.NumG,dtype=np.int32)
+        MaskD=gpuarray.empty(self.NumG,dtype=np.bool_)
+        TrueMaskD=gpuarray.empty(self.NumG,dtype=np.bool_)
+        self.sim_func(XD,YD,OffsetD,MaskD,TrueMaskD,
+                np.float32(x), np.float32(y),self.afDetInfoD,SD,
+                self.whichOmegaD,np.int32(1),np.int32(self.NumG),
+                      np.float32(self.eng),np.int32(45),self.LimD,np.int32(5),
+                 block=(self.NumG,1,1),grid=(1,1))
+        self.KL_One_func(XD,YD,OffsetD,MaskD,TrueMaskD,
+                             falseMapsD,np.int32(self.NumG),np.int32(45),np.float32(epsilon),np.int32(-1), #minus one!!
+                             block=(self.NumG,1,1),grid=(1,1))
+        #find a better distortion matrix
+        for ii in range(MaxIter):
+            S=np.empty((NumD,3,3),dtype=np.float32)
+            S[0,:,:]=mean
+            S[1:,:,:]=np.random.multivariate_normal(
+                mean.ravel(),cov,size=(NumD-1)).reshape((NumD-1,3,3),order='C')
+            SD=gpuarray.to_gpu(S.ravel().astype(np.float32))
+            XD=gpuarray.empty(self.NumG*NumD,dtype=np.int32)
+            YD=gpuarray.empty(self.NumG*NumD,dtype=np.int32)
+            OffsetD=gpuarray.empty(self.NumG*NumD,dtype=np.int32)
+            MaskD=gpuarray.empty(self.NumG*NumD,dtype=np.bool_)
+            TrueMaskD=gpuarray.empty(self.NumG*NumD,dtype=np.bool_)
+            self.sim_func(XD,YD,OffsetD,MaskD,TrueMaskD,
+                    np.float32(x), np.float32(y),self.afDetInfoD,SD,
+                    self.whichOmegaD,np.int32(NumD),np.int32(self.NumG),
+                          np.float32(self.eng),np.int32(45),self.LimD,np.int32(5),
+                     block=(self.NumG,1,1),grid=(NumD,1))
+            diffD=gpuarray.empty(NumD,dtype=np.float32)
+            self.KL_diff_func(diffD,
+                        XD,YD,OffsetD,MaskD,TrueMaskD,
+                        realMapsLogD,falseMapsD,
+                        np.int32(self.NumG),np.int32(NumD),np.int32(45),
+                        block=(BlockSize,1,1),grid=(int(NumD/BlockSize+1),1))
+            diffH=diffD.get()
+            args=np.argpartition(diffH,numCut)[:numCut]
+            cov=np.cov(S[args].reshape((numCut,9),order='C').T)
+            mean=np.mean(S[args],axis=0)
+            if debug:
+                print(np.min(diffH),diffH[0])
+        #add the new hit
+        S=mean
+        SD=gpuarray.to_gpu(S.ravel().astype(np.float32))
+        XD=gpuarray.empty(self.NumG,dtype=np.int32)
+        YD=gpuarray.empty(self.NumG,dtype=np.int32)
+        OffsetD=gpuarray.empty(self.NumG,dtype=np.int32)
+        MaskD=gpuarray.empty(self.NumG,dtype=np.bool_)
+        TrueMaskD=gpuarray.empty(self.NumG,dtype=np.bool_)
+        self.sim_func(XD,YD,OffsetD,MaskD,TrueMaskD,
+                np.float32(x), np.float32(y),self.afDetInfoD,SD,
+                self.whichOmegaD,np.int32(1),np.int32(self.NumG),
+                      np.float32(self.eng),np.int32(45),self.LimD,np.int32(5),
+                 block=(self.NumG,1,1),grid=(1,1))
+        self.KL_One_func(XD,YD,OffsetD,MaskD,TrueMaskD,
+                             falseMapsD,np.int32(self.NumG),np.int32(45),np.float32(epsilon),np.int32(+1), #plus one!!
+                             block=(self.NumG,1,1),grid=(1,1))
+        return mean
 
 
 class ReconSingleGrain(object):
 
-    def __init__(self,cfgFile,outdir):
+    def __init__(self,cfgFile,outdir,gid):
         self.Cfg=Initializer(cfgFile)
         self.peakFile=h5py.File(self.Cfg.peakfn,'r')
         self.Cfg.SetPosOrien(self.peakFile['Pos'],self.peakFile['Orien'])
@@ -190,8 +262,9 @@ class ReconSingleGrain(object):
                 peakFile=self.peakFile,
                 _Det=self.Cfg.Det, _Gs=self.Cfg.Gs, _Info=self.Cfg.Info, _eng=self.Cfg.eng)
         self.outdir=outdir
+        self.gid=gid
 
-    def GetGrids(self,threshold=1,fileType='npy',orig=[-0.256,-0.256],step=[0.002,0.002],gid=40):
+    def GetGrids(self,threshold=1,fileType='npy',orig=[-0.256,-0.256],step=[0.002,0.002]):
         if fileType=='mic':
             sw,snp=read_mic_file(self.micfn)
             t=snp[:,6:9]-np.tile(np.array(self.grainOrien),(snp.shape[0],1))
@@ -216,7 +289,7 @@ class ReconSingleGrain(object):
             tmpx=np.arange(orig[0],step[0]*GIDLayer.shape[0]+orig[0],step[0])
             tmpy=np.arange(orig[1],step[1]*GIDLayer.shape[1]+orig[1],step[1])
             xv,yv=np.meshgrid(tmpx,tmpy)
-            idx=np.where(GIDLayer==gid)
+            idx=np.where(GIDLayer==self.gid)
             x=xv[idx]
             y=yv[idx]
             con=np.ones(x.shape)
@@ -231,7 +304,7 @@ class ReconSingleGrain(object):
                 MaxIter=MaxIter,debug=True)
         return
 
-    def ReconGrids(self,tmpxx,tmpyy,reconstructor):
+    def ReconGridsPhase1(self,tmpxx,tmpyy,reconstructor):
         AllMaxScore=[]
         AllMaxS=[]
         for ii in range(len(tmpxx)):
@@ -247,7 +320,68 @@ class ReconSingleGrain(object):
                     print(ii,t[0])
                 AllMaxScore.append(t[2])
                 AllMaxS.append(t[1])
+        AllMaxS=np.array(AllMaxS)
+        AllMaxScore=np.array(AllMaxScore)
         return AllMaxScore, AllMaxS
+    
+    def simfloatMap(self,tmpxx,tmpyy,AllMaxS):
+        Lim=np.array(self.peakFile['limits'])
+
+        sim=StrainSimulator_GPU( _NumG=self.Cfg.NumG,_Lim=Lim,
+                _Det=self.Cfg.Det, _Gs=self.Cfg.Gs, _Info=self.Cfg.Info, _eng=self.Cfg.eng)
+        sim.loadGs()
+
+        xtmp,ytmp,otmp,maskH=sim.Simulate(tmpxx,tmpyy,AllMaxS,len(tmpxx))
+        res=np.zeros(shape=(160,300,self.Cfg.NumG*45),dtype=np.uint32,order='F')
+        for ii in range(self.Cfg.NumG):
+            tmpMask=maskH[:,ii]
+            tmpX=xtmp[tmpMask,ii]
+            tmpY=ytmp[tmpMask,ii]
+            tmpO=otmp[tmpMask,ii]
+            myMaps=np.zeros((45,Lim[ii][3]-Lim[ii][2],Lim[ii][1]-Lim[ii][0]))
+            for jj in range(45):
+                idx=np.where(tmpO==jj)[0]
+                if len(idx)==0:
+                    myMaps[jj]=0
+                    continue
+                myCounter=Counter(zip(tmpX[idx],tmpY[idx]))
+                val=list(myCounter.values())
+                xx,yy=zip(*(myCounter.keys()))
+                tmp=coo_matrix((val,(yy,xx)),shape=(Lim[ii][3]-Lim[ii][2],Lim[ii][1]-Lim[ii][0])).toarray()
+    #             myMaps[jj]=gaussian_filter(tmp,sigma=1,mode='nearest',truncate=4)
+                myMaps[jj]=tmp
+            myMaps=np.moveaxis(myMaps,0,2)
+            res[:myMaps.shape[0],:myMaps.shape[1],ii*45:(ii+1)*45]=myMaps
+        return res
+    
+    def SimPhase1Result(self,tmpxx,tmpyy,AllMaxS,epsilon=1e-6):
+        falseMaps=self.simfloatMap(tmpxx,tmpyy,AllMaxS)
+        realMaps=np.zeros(shape=(160,300,self.Cfg.NumG*45),dtype=np.uint32)
+        for ii in range(self.Cfg.NumG):
+            tmp=np.array(self.peakFile['Imgs']['Im{0:d}'.format(ii)])
+            realMaps[:tmp.shape[0],:tmp.shape[1],ii*45:(ii+1)*45]=tmp
+
+        realMaps=realMaps/(np.sum(realMaps)/np.sum(falseMaps))
+        self.falseMapsD=gpuarray.to_gpu((falseMaps.ravel()+epsilon).astype(np.float32))
+        self.realMapsLogD=gpuarray.to_gpu(np.log(realMaps.ravel()+epsilon).astype(np.float32))
+        return
+
+    def ReconGridsPhase2(self,tmpxx,tmpyy,AllMaxS,recon,iterN=10):
+        for jj in range(iterN):
+            print("{0:d}/{1:d}".format(jj,iterN))
+            for ii in range(len(tmpxx)):
+                if ii==200:
+                    tmp=recon.ChangeOneVoxel_KL(
+                            tmpxx[ii],tmpyy[ii],AllMaxS[ii],self.realMapsLogD,self.falseMapsD,
+                            NumD=10000,numCut=100,cov=1e-6*np.eye(9),MaxIter=4,debug=True)
+                    AllMaxS[ii]=tmp
+                    print(AllMaxS[ii])
+                else:
+                    tmp=recon.ChangeOneVoxel_KL(
+                            tmpxx[ii],tmpyy[ii],AllMaxS[ii],self.realMapsLogD,self.falseMapsD,
+                            NumD=10000,numCut=100,cov=1e-6*np.eye(9),MaxIter=4,debug=False)
+                    AllMaxS[ii]=tmp
+        return AllMaxS
 
     def Transform2RealS(self,AllMaxS):
         AllMaxS=np.array(AllMaxS)
@@ -260,13 +394,20 @@ class ReconSingleGrain(object):
         return realO, realS
 
     def run(self):
-        x,y,con=self.GetGrids()
-        np.save(self.outdir+'/x.npy',x)
-        np.save(self.outdir+'/y.npy',y)
-        np.save(self.outdir+'/con.npy',con)
-        AllMaxScore,AllMaxS=self.ReconGrids(x,y,self.recon)
-        np.save(self.outdir+'/allMaxScore.npy',AllMaxScore)
-        np.save(self.outdir+'/allMaxS.npy',AllMaxS)
-        realO,realS=self.Transform2RealS(AllMaxS)
-        np.save(self.outdir+'/realS.npy',realS)
-        np.save(self.outdir+'/realO.npy',realO)
+        with h5py.File(self.outdir+'g{0:d}_rec.hdf5'.format(self.gid),'w') as f:
+            x,y,con=self.GetGrids()
+            f.create_dataset("x",data=x)
+            f.create_dataset("y",data=y)
+            f.create_dataset("IceNineConf",data=con)
+
+            AllMaxScore,AllMaxS=self.ReconGridsPhase1(x,y,self.recon)
+            f.create_dataset("Phase1_Conf",data=AllMaxScore)
+            f.create_dataset("Phase1_S",data=AllMaxS)
+            
+            self.SimPhase1Result(x,y,AllMaxS)
+            AllMaxS=self.ReconGridsPhase2(x,y,AllMaxS,self.recon)
+            f.create_dataset("Phase2_S",data=AllMaxS)
+
+            realO,realS=self.Transform2RealS(AllMaxS)
+            f.create_dataset("realS",data=realS)
+            f.create_dataset("realO",data=realO)

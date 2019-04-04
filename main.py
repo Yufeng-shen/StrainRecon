@@ -32,11 +32,13 @@ def main(args):
         if cfgFile==None:
             cfgFile='ConfigFiles/g40.yml'
         if outdir==None:
-            outdir='/home/yufengs/SimData/g40/'
+            outdir='/home/yufengs/SimData/'
         if not os.path.exists(outdir):
             os.makedirs(outdir)
+        if gid==None:
+            gid=40
         print("Start reconstructing \n Output Directory: " +outdir+ "\n Configure File: "+cfgFile)
-        rec=ReconSingleGrain(cfgFile,outdir)
+        rec=ReconSingleGrain(cfgFile,outdir,gid)
         start=time.time()
         rec.run()
         end=time.time()

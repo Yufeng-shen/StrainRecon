@@ -11,6 +11,7 @@ from util.MicFileTool import read_mic_file
 import util.RotRep as Rot
 from InitStrain import Initializer
 import h5py
+import os
 
 from Simulator_GPU import StrainSimulator_GPU
 from collections import Counter
@@ -112,7 +113,9 @@ class StrainReconstructor_GPU(object):
                                    self.Det.Jvector,self.Det.Kvector]).astype(np.float32)
         self.afDetInfoD=gpuarray.to_gpu(afDetInfoH)
 
-    def CrossEntropyMethod(self,x,y,NumD=10000,numCut=100,initStd=1e-4,MaxIter=100,S_init=np.eye(3),BlockSize=256,debug=False):
+    def CrossEntropyMethod(self,x,y,
+            XD,YD,OffsetD,MaskD,TrueMaskD,scoreD,S_gpu,
+            NumD=10000,numCut=100,initStd=1e-4,MaxIter=100,S_init=np.eye(3),BlockSize=256,debug=False):
         if self.ImLoaded==False:
             self.loadIm()
         if self.GsLoaded==False:
@@ -120,22 +123,14 @@ class StrainReconstructor_GPU(object):
 
         S=np.random.multivariate_normal(
             np.zeros(9),np.eye(9)*initStd,size=(NumD)).reshape((NumD,3,3),order='C')+np.tile(S_init,(NumD,1,1))
-        
-        SD=gpuarray.to_gpu(S.ravel().astype(np.float32))
+        cuda.memcpy_htod(S_gpu,S.ravel().astype(np.float32))
 
-        XD=gpuarray.empty(self.NumG*NumD,dtype=np.int32)
-        YD=gpuarray.empty(self.NumG*NumD,dtype=np.int32)
-        OffsetD=gpuarray.empty(self.NumG*NumD,dtype=np.int32)
-
-        MaskD=gpuarray.empty(self.NumG*NumD,dtype=np.bool_)
-        TrueMaskD=gpuarray.empty(self.NumG*NumD,dtype=np.bool_)
 
         self.sim_func(XD,YD,OffsetD,MaskD,TrueMaskD,
-                np.float32(x), np.float32(y),self.afDetInfoD,SD,
+                np.float32(x), np.float32(y),self.afDetInfoD,S_gpu,
                 self.whichOmegaD,np.int32(NumD),np.int32(self.NumG),np.float32(self.eng),np.int32(45),self.LimD,np.int32(5),
                  block=(self.NumG,1,1),grid=(NumD,1))
         
-        scoreD=gpuarray.empty(NumD,dtype=np.float32)
         self.hit_func(scoreD,
                 XD,YD,OffsetD,MaskD,TrueMaskD,
                 self.MaxIntD,np.int32(self.NumG),np.int32(NumD),np.int32(45),
@@ -148,19 +143,13 @@ class StrainReconstructor_GPU(object):
         for ii in range(MaxIter):
             S=np.random.multivariate_normal(
                 np.zeros(9),cov,size=(NumD)).reshape((NumD,3,3),order='C')+np.tile(mean,(NumD,1,1))
-            SD=gpuarray.to_gpu(S.ravel().astype(np.float32))
-            XD=gpuarray.empty(self.NumG*NumD,dtype=np.int32)
-            YD=gpuarray.empty(self.NumG*NumD,dtype=np.int32)
-            OffsetD=gpuarray.empty(self.NumG*NumD,dtype=np.int32)
-            MaskD=gpuarray.empty(self.NumG*NumD,dtype=np.bool_)
-            TrueMaskD=gpuarray.empty(self.NumG*NumD,dtype=np.bool_)
+            cuda.memcpy_htod(S_gpu,S.ravel().astype(np.float32))
 
             self.sim_func(XD,YD,OffsetD,MaskD,TrueMaskD,
-                    np.float32(x), np.float32(y),self.afDetInfoD,SD,
+                    np.float32(x), np.float32(y),self.afDetInfoD,S_gpu,
                     self.whichOmegaD,np.int32(NumD),np.int32(self.NumG),np.float32(self.eng),np.int32(45),self.LimD,np.int32(5),
                      block=(self.NumG,1,1),grid=(NumD,1))
 
-            scoreD=gpuarray.empty(NumD,dtype=np.float32)
 
             self.hit_func(scoreD,
                     XD,YD,OffsetD,MaskD,TrueMaskD,
@@ -183,17 +172,15 @@ class StrainReconstructor_GPU(object):
         return cov,mean,np.max(score)
     
     def ChangeOneVoxel_KL(self,x,y,mean,realMapsLogD,falseMapsD,
-            NumD=1000,numCut=50,cov=1e-7*np.eye(9),epsilon=1e-6,MaxIter=4,BlockSize=256,debug=False):
+            XD,YD,OffsetD,MaskD,TrueMaskD,diffD,S_gpu,
+            NumD=5000,numCut=50,cov=1e-7*np.eye(9),epsilon=1e-6,MaxIter=3,BlockSize=256,debug=False):
+        if self.GsLoaded==False:
+            self.loadGs()
         #remove the original hit
         S=mean
-        SD=gpuarray.to_gpu(S.ravel().astype(np.float32))
-        XD=gpuarray.empty(self.NumG,dtype=np.int32)
-        YD=gpuarray.empty(self.NumG,dtype=np.int32)
-        OffsetD=gpuarray.empty(self.NumG,dtype=np.int32)
-        MaskD=gpuarray.empty(self.NumG,dtype=np.bool_)
-        TrueMaskD=gpuarray.empty(self.NumG,dtype=np.bool_)
+        cuda.memcpy_htod(S_gpu,S.ravel().astype(np.float32))
         self.sim_func(XD,YD,OffsetD,MaskD,TrueMaskD,
-                np.float32(x), np.float32(y),self.afDetInfoD,SD,
+                np.float32(x), np.float32(y),self.afDetInfoD,S_gpu,
                 self.whichOmegaD,np.int32(1),np.int32(self.NumG),
                       np.float32(self.eng),np.int32(45),self.LimD,np.int32(5),
                  block=(self.NumG,1,1),grid=(1,1))
@@ -206,18 +193,12 @@ class StrainReconstructor_GPU(object):
             S[0,:,:]=mean
             S[1:,:,:]=np.random.multivariate_normal(
                 mean.ravel(),cov,size=(NumD-1)).reshape((NumD-1,3,3),order='C')
-            SD=gpuarray.to_gpu(S.ravel().astype(np.float32))
-            XD=gpuarray.empty(self.NumG*NumD,dtype=np.int32)
-            YD=gpuarray.empty(self.NumG*NumD,dtype=np.int32)
-            OffsetD=gpuarray.empty(self.NumG*NumD,dtype=np.int32)
-            MaskD=gpuarray.empty(self.NumG*NumD,dtype=np.bool_)
-            TrueMaskD=gpuarray.empty(self.NumG*NumD,dtype=np.bool_)
+            cuda.memcpy_htod(S_gpu,S.ravel().astype(np.float32))
             self.sim_func(XD,YD,OffsetD,MaskD,TrueMaskD,
-                    np.float32(x), np.float32(y),self.afDetInfoD,SD,
+                    np.float32(x), np.float32(y),self.afDetInfoD,S_gpu,
                     self.whichOmegaD,np.int32(NumD),np.int32(self.NumG),
                           np.float32(self.eng),np.int32(45),self.LimD,np.int32(5),
                      block=(self.NumG,1,1),grid=(NumD,1))
-            diffD=gpuarray.empty(NumD,dtype=np.float32)
             self.KL_diff_func(diffD,
                         XD,YD,OffsetD,MaskD,TrueMaskD,
                         realMapsLogD,falseMapsD,
@@ -231,14 +212,9 @@ class StrainReconstructor_GPU(object):
                 print(np.min(diffH),diffH[0])
         #add the new hit
         S=mean
-        SD=gpuarray.to_gpu(S.ravel().astype(np.float32))
-        XD=gpuarray.empty(self.NumG,dtype=np.int32)
-        YD=gpuarray.empty(self.NumG,dtype=np.int32)
-        OffsetD=gpuarray.empty(self.NumG,dtype=np.int32)
-        MaskD=gpuarray.empty(self.NumG,dtype=np.bool_)
-        TrueMaskD=gpuarray.empty(self.NumG,dtype=np.bool_)
+        cuda.memcpy_htod(S_gpu,S.ravel().astype(np.float32))
         self.sim_func(XD,YD,OffsetD,MaskD,TrueMaskD,
-                np.float32(x), np.float32(y),self.afDetInfoD,SD,
+                np.float32(x), np.float32(y),self.afDetInfoD,S_gpu,
                 self.whichOmegaD,np.int32(1),np.int32(self.NumG),
                       np.float32(self.eng),np.int32(45),self.LimD,np.int32(5),
                  block=(self.NumG,1,1),grid=(1,1))
@@ -304,18 +280,32 @@ class ReconSingleGrain(object):
                 MaxIter=MaxIter,debug=True)
         return
 
-    def ReconGridsPhase1(self,tmpxx,tmpyy,reconstructor):
+    def ReconGridsPhase1(self,tmpxx,tmpyy,reconstructor,NumD=10000,numCut=100):
+        #allocate gpu memory
+        XD=gpuarray.empty(self.Cfg.NumG*NumD,dtype=np.int32)
+        YD=gpuarray.empty(self.Cfg.NumG*NumD,dtype=np.int32)
+        OffsetD=gpuarray.empty(self.Cfg.NumG*NumD,dtype=np.int32)
+
+        MaskD=gpuarray.empty(self.Cfg.NumG*NumD,dtype=np.bool_)
+        TrueMaskD=gpuarray.empty(self.Cfg.NumG*NumD,dtype=np.bool_)
+        scoreD=gpuarray.empty(NumD,dtype=np.float32)
+        S_gpu=cuda.mem_alloc(NumD*9*4)
+
         AllMaxScore=[]
         AllMaxS=[]
         for ii in range(len(tmpxx)):
             if ii==0:
-                t=reconstructor.CrossEntropyMethod(tmpxx[ii],tmpyy[ii])
+                t=reconstructor.CrossEntropyMethod(tmpxx[ii],tmpyy[ii],
+                        XD,YD,OffsetD,MaskD,TrueMaskD,scoreD,S_gpu,
+                        NumD=NumD,numCut=numCut)
                 print(ii,t[0])
                 AllMaxScore.append(t[2])
                 AllMaxS.append(t[1])
             else:
 #                t=reconstructor.CrossEntropyMethod(tmpxx[ii],tmpyy[ii],S_init=AllMaxS[-1])
-                t=reconstructor.CrossEntropyMethod(tmpxx[ii],tmpyy[ii])
+                t=reconstructor.CrossEntropyMethod(tmpxx[ii],tmpyy[ii],
+                        XD,YD,OffsetD,MaskD,TrueMaskD,scoreD,S_gpu,
+                        NumD=NumD,numCut=numCut)
                 if ii%50==0:
                     print(ii,t[0])
                 AllMaxScore.append(t[2])
@@ -366,20 +356,35 @@ class ReconSingleGrain(object):
         self.realMapsLogD=gpuarray.to_gpu(np.log(realMaps.ravel()+epsilon).astype(np.float32))
         return
 
-    def ReconGridsPhase2(self,tmpxx,tmpyy,AllMaxS,recon,iterN=10):
+    def ReconGridsPhase2(self,tmpxx,tmpyy,AllMaxS,recon,
+            NumD=5000,numCut=50,iterN=10,shuffle=False):
+        #allocate gpu memory
+        XD=gpuarray.empty(self.Cfg.NumG*NumD,dtype=np.int32)
+        YD=gpuarray.empty(self.Cfg.NumG*NumD,dtype=np.int32)
+        OffsetD=gpuarray.empty(self.Cfg.NumG*NumD,dtype=np.int32)
+        MaskD=gpuarray.empty(self.Cfg.NumG*NumD,dtype=np.bool_)
+        TrueMaskD=gpuarray.empty(self.Cfg.NumG*NumD,dtype=np.bool_)
+        diffD=gpuarray.empty(NumD,dtype=np.float32)
+        S_gpu=cuda.mem_alloc(NumD*9*4)
         for jj in range(iterN):
-            print("{0:d}/{1:d}".format(jj,iterN))
-            for ii in range(len(tmpxx)):
+            print("{0:d}/{1:d}".format(jj+1,iterN))
+            if shuffle:
+                order=np.random.permutation(len(tmpxx))
+            else:
+                order=np.arange(len(tmpxx))
+            for ii in order:
                 if ii==200:
                     tmp=recon.ChangeOneVoxel_KL(
                             tmpxx[ii],tmpyy[ii],AllMaxS[ii],self.realMapsLogD,self.falseMapsD,
-                            NumD=10000,numCut=100,cov=1e-6*np.eye(9),MaxIter=4,debug=True)
+                            XD,YD,OffsetD,MaskD,TrueMaskD,diffD,S_gpu,
+                            NumD=NumD,numCut=numCut,cov=1e-7*np.eye(9),MaxIter=3,debug=True)
                     AllMaxS[ii]=tmp
                     print(AllMaxS[ii])
                 else:
                     tmp=recon.ChangeOneVoxel_KL(
                             tmpxx[ii],tmpyy[ii],AllMaxS[ii],self.realMapsLogD,self.falseMapsD,
-                            NumD=10000,numCut=100,cov=1e-6*np.eye(9),MaxIter=4,debug=False)
+                            XD,YD,OffsetD,MaskD,TrueMaskD,diffD,S_gpu,
+                            NumD=NumD,numCut=numCut,cov=1e-7*np.eye(9),MaxIter=3,debug=False)
                     AllMaxS[ii]=tmp
         return AllMaxS
 
@@ -394,20 +399,38 @@ class ReconSingleGrain(object):
         return realO, realS
 
     def run(self):
-        with h5py.File(self.outdir+'g{0:d}_rec.hdf5'.format(self.gid),'w') as f:
-            x,y,con=self.GetGrids()
-            f.create_dataset("x",data=x)
-            f.create_dataset("y",data=y)
-            f.create_dataset("IceNineConf",data=con)
-
-            AllMaxScore,AllMaxS=self.ReconGridsPhase1(x,y,self.recon)
-            f.create_dataset("Phase1_Conf",data=AllMaxScore)
-            f.create_dataset("Phase1_S",data=AllMaxS)
-            
+        fn=self.outdir+"g{0:d}_rec.hdf5".format(self.gid)
+        exists=os.path.isfile(fn)
+        if exists:
+            f=h5py.File(fn)
+            x=f['x'][:]
+            y=f['y'][:]
+            AllMaxS=f['Phase2_S'][:]
             self.SimPhase1Result(x,y,AllMaxS)
-            AllMaxS=self.ReconGridsPhase2(x,y,AllMaxS,self.recon)
-            f.create_dataset("Phase2_S",data=AllMaxS)
+            AllMaxS=self.ReconGridsPhase2(x,y,AllMaxS,self.recon,iterN=2,shuffle=True)
+            tmp=f["Phase2_S"]
+            tmp[...]=AllMaxS
 
             realO,realS=self.Transform2RealS(AllMaxS)
-            f.create_dataset("realS",data=realS)
-            f.create_dataset("realO",data=realO)
+            tmp=f["realS"]
+            tmp[...]=realS
+            tmp=f["realO"]
+            tmp[...]=realO
+        else:
+            with h5py.File(fn,'w') as f:
+                x,y,con=self.GetGrids()
+                f.create_dataset("x",data=x)
+                f.create_dataset("y",data=y)
+                f.create_dataset("IceNineConf",data=con)
+
+                AllMaxScore,AllMaxS=self.ReconGridsPhase1(x,y,self.recon)
+                f.create_dataset("Phase1_Conf",data=AllMaxScore)
+                f.create_dataset("Phase1_S",data=AllMaxS)
+                
+                self.SimPhase1Result(x,y,AllMaxS)
+                AllMaxS=self.ReconGridsPhase2(x,y,AllMaxS,self.recon)
+                f.create_dataset("Phase2_S",data=AllMaxS)
+
+                realO,realS=self.Transform2RealS(AllMaxS)
+                f.create_dataset("realS",data=realS)
+                f.create_dataset("realO",data=realO)

@@ -2,4 +2,6 @@
 *.pickle
 *.txt
 *.py_bak
+*.log
+*.prof
 .ipynb_checkpoints/

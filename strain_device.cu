@@ -202,7 +202,8 @@ __global__ void Simulate_for_Pos(int *aiX, int *aiY, int *aiOffset, bool *abMask
 }
 
 __global__ void Hit_Score(float *afscore,
-		const int *aiX, const int *aiY, const int *aiOffset, const bool *abMask, const bool *abtrueMask,
+		const int* __restrict__ aiX, const int*  __restrict__ aiY, 
+		const int* __restrict__  aiOffset, const bool*  __restrict__ abMask, const bool*  __restrict__ abtrueMask,
 		const float* __restrict__ MaxInten,
 		 int iNumG, int iNumD, int iNumFrame){
 	/*
@@ -237,7 +238,7 @@ __global__ void KL_total(float *afKL,
 }
 
 __global__ void KL_ChangeOne(const int *aiX, const int *aiY, const int *aiOffset, const bool *abMask, const bool *abtrueMask,
-		float *fakeMap,
+		float* __restrict__ fakeMap,
 		int iNumG, int iNumFrame,float epsilon, int one){
 	int i=blockIdx.x*blockDim.x+threadIdx.x;// id of G vector
 	if(i<iNumG){
@@ -250,8 +251,9 @@ __global__ void KL_ChangeOne(const int *aiX, const int *aiY, const int *aiOffset
 
 
 __global__ void KL_diff(float *afKLdiff,
-		const int *aiX, const int *aiY, const int *aiOffset, const bool *abMask, const bool *abtrueMask,
-		const float *realMapLog, const float *fakeMap,
+		const int* __restrict__ aiX, const int*  __restrict__ aiY, 
+		const int* __restrict__  aiOffset, const bool*  __restrict__ abMask, const bool*  __restrict__ abtrueMask,
+		const float* __restrict__ realMapLog, const float* __restrict__ fakeMap,
 		int iNumG, int iNumD, int iNumFrame){
 	int i=blockIdx.x * blockDim.x + threadIdx.x; // id of distortion matrix
 	if(i<iNumD){

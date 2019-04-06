@@ -169,7 +169,7 @@ class StrainReconstructor_GPU(object):
             if np.min(score)==np.max(score):
                 break
 
-        return cov,mean,np.max(score)
+        return cov,mean,np.max(score[args])
     
     def ChangeOneVoxel_KL(self,x,y,mean,realMapsLogD,falseMapsD,
             XD,YD,OffsetD,MaskD,TrueMaskD,diffD,S_gpu,
@@ -208,6 +208,8 @@ class StrainReconstructor_GPU(object):
             args=np.argpartition(diffH,numCut)[:numCut]
             cov=np.cov(S[args].reshape((numCut,9),order='C').T)
             mean=np.mean(S[args],axis=0)
+            if ii==0:
+                diff_init=diffH[0]
             if debug:
                 print(np.min(diffH),diffH[0])
         #add the new hit
@@ -218,10 +220,18 @@ class StrainReconstructor_GPU(object):
                 self.whichOmegaD,np.int32(1),np.int32(self.NumG),
                       np.float32(self.eng),np.int32(45),self.LimD,np.int32(5),
                  block=(self.NumG,1,1),grid=(1,1))
+
+        self.KL_diff_func(diffD,
+                    XD,YD,OffsetD,MaskD,TrueMaskD,
+                    realMapsLogD,falseMapsD,
+                    np.int32(self.NumG),np.int32(1),np.int32(45),
+                    block=(BlockSize,1,1),grid=(int(NumD/BlockSize+1),1))
+        diffH=diffD.get()
+
         self.KL_One_func(XD,YD,OffsetD,MaskD,TrueMaskD,
                              falseMapsD,np.int32(self.NumG),np.int32(45),np.float32(epsilon),np.int32(+1), #plus one!!
                              block=(self.NumG,1,1),grid=(1,1))
-        return mean
+        return cov,mean,diffH[0]-diff_init
 
 
 class ReconSingleGrain(object):
@@ -357,7 +367,7 @@ class ReconSingleGrain(object):
         return
 
     def ReconGridsPhase2(self,tmpxx,tmpyy,AllMaxS,recon,
-            NumD=5000,numCut=50,iterN=10,shuffle=False):
+            NumD=10000,numCut=50,iterN=10,shuffle=False):
         #allocate gpu memory
         XD=gpuarray.empty(self.Cfg.NumG*NumD,dtype=np.int32)
         YD=gpuarray.empty(self.Cfg.NumG*NumD,dtype=np.int32)
@@ -366,6 +376,8 @@ class ReconSingleGrain(object):
         TrueMaskD=gpuarray.empty(self.Cfg.NumG*NumD,dtype=np.bool_)
         diffD=gpuarray.empty(NumD,dtype=np.float32)
         S_gpu=cuda.mem_alloc(NumD*9*4)
+        history=[0]
+        acc=0
         for jj in range(iterN):
             print("{0:d}/{1:d}".format(jj+1,iterN))
             if shuffle:
@@ -377,16 +389,18 @@ class ReconSingleGrain(object):
                     tmp=recon.ChangeOneVoxel_KL(
                             tmpxx[ii],tmpyy[ii],AllMaxS[ii],self.realMapsLogD,self.falseMapsD,
                             XD,YD,OffsetD,MaskD,TrueMaskD,diffD,S_gpu,
-                            NumD=NumD,numCut=numCut,cov=1e-7*np.eye(9),MaxIter=3,debug=True)
-                    AllMaxS[ii]=tmp
-                    print(AllMaxS[ii])
+                            NumD=NumD,numCut=numCut,cov=1e-6*np.eye(9),MaxIter=3,debug=True)
+                    AllMaxS[ii]=tmp[1]
+                    print(tmp[0])
                 else:
                     tmp=recon.ChangeOneVoxel_KL(
                             tmpxx[ii],tmpyy[ii],AllMaxS[ii],self.realMapsLogD,self.falseMapsD,
                             XD,YD,OffsetD,MaskD,TrueMaskD,diffD,S_gpu,
-                            NumD=NumD,numCut=numCut,cov=1e-7*np.eye(9),MaxIter=3,debug=False)
-                    AllMaxS[ii]=tmp
-        return AllMaxS
+                            NumD=NumD,numCut=numCut,cov=1e-6*np.eye(9),MaxIter=3,debug=False)
+                    AllMaxS[ii]=tmp[1]
+                acc+=tmp[2]
+                history.append(acc)
+        return AllMaxS,np.array(history)
 
     def Transform2RealS(self,AllMaxS):
         AllMaxS=np.array(AllMaxS)
@@ -405,11 +419,12 @@ class ReconSingleGrain(object):
             f=h5py.File(fn)
             x=f['x'][:]
             y=f['y'][:]
-            AllMaxS=f['Phase2_S'][:]
+            AllMaxS=f['Phase1_S'][:]
             self.SimPhase1Result(x,y,AllMaxS)
-            AllMaxS=self.ReconGridsPhase2(x,y,AllMaxS,self.recon,iterN=2,shuffle=True)
+            AllMaxS,history=self.ReconGridsPhase2(x,y,AllMaxS,self.recon,iterN=10,shuffle=True)
             tmp=f["Phase2_S"]
             tmp[...]=AllMaxS
+            np.save('history.npy',history)
 
             realO,realS=self.Transform2RealS(AllMaxS)
             tmp=f["realS"]
@@ -428,8 +443,9 @@ class ReconSingleGrain(object):
                 f.create_dataset("Phase1_S",data=AllMaxS)
                 
                 self.SimPhase1Result(x,y,AllMaxS)
-                AllMaxS=self.ReconGridsPhase2(x,y,AllMaxS,self.recon)
+                AllMaxS,history=self.ReconGridsPhase2(x,y,AllMaxS,self.recon)
                 f.create_dataset("Phase2_S",data=AllMaxS)
+                np.save('history.npy',history)
 
                 realO,realS=self.Transform2RealS(AllMaxS)
                 f.create_dataset("realS",data=realS)

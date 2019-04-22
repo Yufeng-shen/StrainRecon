@@ -1,0 +1,49 @@
+mode: 'rec' # sim / rec
+
+# Experiment configurations
+energy: 51.9957 #keV
+etalimit: 81 #degree
+pixelSize: 1.454 #micron
+JCenter: 1182.19 #number of pixels
+KCenter: 2026.27 #number of pixels
+JPixelNum: 2048
+KPixelNum: 2048
+Ldistance: 7.14503 #mm
+tilt:   #degree
+- 89.1588 
+- 87.5647
+- 0.278594
+omgRange: #degree
+- 0
+- 180
+
+# Configuration for material
+
+sampleName: 'Ti7for2nd'
+lattice: #1e-10 m
+- 2.95
+- 2.95
+- 4.7152
+atoms: #atom position and z number
+ -  - 1/3.0
+    - 2/3.0
+    - 1/4.0
+    - 22
+ -  - 2/3.0
+    - 1/3.0
+    - 3/4.0
+    - 22
+maxQ: 13
+
+grainID: 40
+
+# Files and file path
+
+# input file for reconstruction mode
+peakFile: 'SimResult/grain_40_sim.hdf5'
+
+# input file for reconstruction mode
+micFile: 'AuxData/Ti7FFT.npy'
+
+# output file of reconstruction mode
+recFile: 'RecResult/grain_40_rec.hdf5'

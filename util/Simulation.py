@@ -3,7 +3,7 @@ from fractions import Fraction
 from math import floor
 from matplotlib import path
 
-def frankie_angles_from_g( g ,verbo=True, **exp ):
+def frankie_angles_from_g( g ,verbo=True, energy=50 ):
     """
     Converted from David's code, which converted from Bob's code.
     I9 internal simulation coordinates: x ray direction is positive x direction, positive z direction is upward, y direction can be determined by right hand rule.
@@ -15,7 +15,7 @@ def frankie_angles_from_g( g ,verbo=True, **exp ):
     ------------
     g: array
        One recipropcal vector in the sample frame when omega==0. Unit is ANGSTROM^-1.
-    exp:
+    energy:
         Experimental parameters. If use 'wavelength', the unit is 10^-10 meter; if use 'energy', the unit is keV.
 
     Returns
@@ -23,10 +23,7 @@ def frankie_angles_from_g( g ,verbo=True, **exp ):
     2Theta and eta are in radian, chi, omega_a and omega_b are in degree. omega_a corresponding to positive y direction scatter, omega_b is negative y direction scatter.
     """
     ghat = g / np.linalg.norm( g );
-    if 'wavelength' in exp:
-        sin_theta = np.linalg.norm( g )*exp['wavelength'] / ( 4*np.pi );
-    elif 'energy' in exp:
-        sin_theta = np.linalg.norm(g)/(exp['energy']*0.506773182)/2
+    sin_theta = np.linalg.norm(g)/(energy*0.506773182)/2
     cos_theta = np.sqrt( 1 - sin_theta**2 );
     cos_chi = ghat[2]; 
     sin_chi = np.sqrt( 1 - cos_chi**2 );
@@ -213,7 +210,7 @@ class CrystalStr:
 
 
 
-def GetProjectedVertex(Det1,sample,orien,etalimit,grainpos,getPeaksInfo=False,bIdx=True,omegaL=-90,omegaU=90,**exp):
+def GetProjectedVertex(Det1,sample,orien,etalimit,grainpos,getPeaksInfo=False,bIdx=True,omegaL=-90,omegaU=90,energy=50):
     """
     Get the observable projected vertex on a single detector and their G vectors.
     Caution!!! This function only works for traditional nf-HEDM experiment setup.
@@ -230,8 +227,8 @@ def GetProjectedVertex(Det1,sample,orien,etalimit,grainpos,getPeaksInfo=False,bI
             Limit of eta value. Usually is about 85.
     grainpos: array
             Position of that vertex in mic file, unit is mm.
-    exp: dict
-        X ray energy or wavelength
+    energy: scalar
+        X ray energy in the unit of KeV
 
     Returns
     ------------
@@ -246,7 +243,7 @@ def GetProjectedVertex(Det1,sample,orien,etalimit,grainpos,getPeaksInfo=False,bI
     rotatedG=orien.dot(sample.Gs.T).T
     for ii in range(len(rotatedG)):
         g1=rotatedG[ii]
-        res=frankie_angles_from_g(g1,verbo=False,**exp)
+        res=frankie_angles_from_g(g1,verbo=False,energy=energy)
         if res==-1:
             pass
         elif res['chi']>=90:

@@ -80,6 +80,7 @@ class Initializer:
             self.Gs=np.array(f['Gs'],dtype=np.float32)
             self.NumG=len(self.Gs)
             self.orienM=np.array(f['OrienM'])
+            self.AvgStrain=np.array(f['AvgStrain'])
             self.GsGenerated=True
 
 
@@ -114,12 +115,18 @@ class Initializer:
         self.tGref.set_array(cuda.matrix_to_array(np.transpose(self.Gs).astype(np.float32),order='F'))
         self.GsLoaded=True
     
-    def generateGs(self,pos,orien):
+    def generateGs(self,pos,orien,AvgStrain):
         self.pos=np.array(pos)
         self.orien=np.array(orien)
         self.orienM=Rot.EulerZXZ2Mat(self.orien/180.0*np.pi)
+        self.AvgStrain=AvgStrain
+#        Ps,self.Gs,Info=Gsim.GetProjectedVertex(self.Det,
+#                self.sample,self.orienM,self.Cfg.etalimit/180.0*np.pi,
+#                self.pos,getPeaksInfo=True,
+#                omegaL=self.Cfg.omgRange[0],
+#                omegaU=self.Cfg.omgRange[1],energy=self.Cfg.energy)
         Ps,self.Gs,Info=Gsim.GetProjectedVertex(self.Det,
-                self.sample,self.orienM,self.Cfg.etalimit/180.0*np.pi,
+                self.sample,self.AvgStrain.dot(self.orienM),self.Cfg.etalimit/180.0*np.pi,
                 self.pos,getPeaksInfo=True,
                 omegaL=self.Cfg.omgRange[0],
                 omegaU=self.Cfg.omgRange[1],energy=self.Cfg.energy)

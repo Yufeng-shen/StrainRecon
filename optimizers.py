@@ -3,7 +3,7 @@ import numpy as np
 
 def CrossEntropyMethod(recon,x,y,
         XD,YD,OffsetD,MaskD,TrueMaskD,scoreD,S_gpu,
-        NumD=10000,numCut=100,cov=1e-4*np.eye(9),MaxIter=100,mean=np.eye(3),BlockSize=256,debug=False):
+        NumD=10000,numCut=100,cov=1e-5*np.eye(9),MaxIter=100,mean=np.eye(3),BlockSize=256,debug=False):
     if recon.ImLoaded==False:
         recon.loadIm()
     if recon.GsLoaded==False:

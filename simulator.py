@@ -90,10 +90,12 @@ class Simulator:
         ss[:,2,1]=ss[:,1,2]
         ss[:,2,2]=tmpE33+1
 
-        simulator=Initializer(self.Cfg)
-        simulator.generateGs(self.Positions[gid],self.EAngles[gid])
+        AvgStrain=np.mean(ss,axis=0)
 
-        peakMap=simulator.simMap(xs,ys,ss,blur=True,dtype=np.uint16)
+        simulator=Initializer(self.Cfg)
+        simulator.generateGs(self.Positions[gid],self.EAngles[gid],AvgStrain)
+
+        peakMap=simulator.simMap(xs,ys,ss-(AvgStrain-np.eye(3)),blur=True,dtype=np.uint16)
 
         f=h5py.File(self.outFN,'w')
         f.create_dataset("limits",data=simulator.LimH)
@@ -102,6 +104,7 @@ class Simulator:
         f.create_dataset("Pos",data=simulator.pos)
         f.create_dataset("Orien",data=simulator.orien)
         f.create_dataset("OrienM",data=simulator.orienM)
+        f.create_dataset("AvgStrain",data=simulator.AvgStrain)
         MaxInt=np.zeros(simulator.NumG,dtype=np.float32)
         grp=f.create_group('Imgs')
         for ii in range(simulator.NumG):

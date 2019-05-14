@@ -93,6 +93,17 @@ class Reconstructor:
         self.realMapsLogD=gpuarray.to_gpu(np.log(realMaps.ravel()+epsilon).astype(np.float32))
         return
 
+    def KL_eachG(self):
+        KLdivergences=np.empty(self.recon.NumG)
+        for ii in range(self.recon.NumG):
+            KLD=gpuarray.empty(300*160*45,dtype=np.float32)
+            self.recon.KL_total_func(KLD,self.realMapsLogD,self.falseMapsD,
+                    np.int32(ii),np.int32(self.recon.NumG),np.int32(45),
+                    block=(45,1,1),grid=(300*160,1))
+            KLH=KLD.get()
+            KLdivergences[ii]=np.sum(KLH)
+        return KLdivergences
+
     def ReconGridsPhase2(self,tmpxx,tmpyy,AllMaxS,
             NumD=10000,numCut=50,iterN=10,shuffle=False):
         #allocate gpu memory
@@ -122,12 +133,12 @@ class Reconstructor:
         return AllMaxS,np.array(history)
 
     def Transform2RealS(self,AllMaxS):
-        AllMaxS=np.array(AllMaxS)
+        S=np.array(AllMaxS)+(self.recon.AvgStrain-np.eye(3))
         realS=np.empty(AllMaxS.shape)
         realO=np.empty(AllMaxS.shape)
         for ii in range(len(realS)):
             #lattice constant I used in python nfHEDM scripts are different from the ffHEDM reconstruction used
-            t=np.linalg.inv(AllMaxS[ii].T).dot(self.recon.orienM).dot([[2.95/2.9254,0,0],[0,2.95/2.9254,0],[0,0,4.7152/4.674]])
+            t=np.linalg.inv(S[ii].T).dot(self.recon.orienM).dot([[2.95/2.9254,0,0],[0,2.95/2.9254,0],[0,0,4.7152/4.674]])
             realO[ii],realS[ii]=polar(t,'left')
         return realO, realS
 
@@ -137,25 +148,41 @@ class Reconstructor:
             f=h5py.File(self.outFN,'r+')
             x=f["x"][:]
             y=f["y"][:]
-            AllMaxS=f["Phase2_S"][:]
+            AllMaxS=f["Phase1_S"][:]
 #            ######################################################
 #            #test
 #            #####################################################
+#            Conf=f["Phase1_Conf"][:]
+#            AllMaxS=f["Phase1_S"][:]
+#            mask=Conf>60
+#            x=x[mask]
+#            y=y[mask]
+#            AllMaxS=AllMaxS[mask]
+#
 #            self.SimPhase1Result(x,y,AllMaxS)
 #            AllMaxS,history=self.ReconGridsPhase2(x,y,AllMaxS,iterN=10,shuffle=True)
-#            f.create_dataset("NoNormalize_S",data=AllMaxS)
+#            f.create_dataset("OnlyOver60_S",data=AllMaxS)
+#            f.create_dataset("OnlyOver60_x",data=x)
+#            f.create_dataset("OnlyOver60_y",data=y)
             #####################################################
             self.SimPhase1Result(x,y,AllMaxS)
             AllMaxS,history=self.ReconGridsPhase2(x,y,AllMaxS,iterN=10,shuffle=True)
             tmp=f["Phase2_S"]
             tmp[...]=AllMaxS
-            np.save('history.npy',history)
+            tmp=f["Phase2_history"]
+            del tmp
+            KLd=self.KL_eachG()
+            tmp=f["final_KLdivergence"]
+            del tmp
+            f.create_dataset("final_KLdivegence",data=KLd)
+            f.create_dataset('Phase2_history',data=history)
 
             realO,realS=self.Transform2RealS(AllMaxS)
             tmp=f["realS"]
             tmp[...]=realS
             tmp=f["realO"]
             tmp[...]=realO
+            f.close()
         else:
             with h5py.File(self.outFN,'w') as f:
                 x,y,con=self.GetGrids()
@@ -170,7 +197,9 @@ class Reconstructor:
                 self.SimPhase1Result(x,y,AllMaxS)
                 AllMaxS,history=self.ReconGridsPhase2(x,y,AllMaxS)
                 f.create_dataset("Phase2_S",data=AllMaxS)
-                np.save('history.npy',history)
+                KLd=self.KL_eachG()
+                f.create_dataset("final_KLdivergence",data=KLd)
+                f.create_dataset('Phase2_history',data=history)
 
                 realO,realS=self.Transform2RealS(AllMaxS)
                 f.create_dataset("realS",data=realS)

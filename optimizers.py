@@ -53,7 +53,7 @@ def ChangeOneVoxel_KL(recon,x,y,mean,realMapsLogD,falseMapsD,
             recon.whichOmegaD,np.int32(1),np.int32(recon.NumG),
                   np.float32(recon.Cfg.energy),np.int32(45),recon.LimD,np.int32(5),
              block=(recon.NumG,1,1),grid=(1,1))
-    recon.KL_One_func(XD,YD,OffsetD,MaskD,TrueMaskD,
+    recon.One_func(XD,YD,OffsetD,MaskD,TrueMaskD,
                          falseMapsD,np.int32(recon.NumG),np.int32(45),
                          np.float32(epsilon),np.int32(-1), #minus one!!
                          block=(recon.NumG,1,1),grid=(1,1))
@@ -98,7 +98,70 @@ def ChangeOneVoxel_KL(recon,x,y,mean,realMapsLogD,falseMapsD,
                 block=(BlockSize,1,1),grid=(int(NumD/BlockSize+1),1))
     diffH=diffD.get()
 
-    recon.KL_One_func(XD,YD,OffsetD,MaskD,TrueMaskD,
+    recon.One_func(XD,YD,OffsetD,MaskD,TrueMaskD,
+                         falseMapsD,np.int32(recon.NumG),np.int32(45),np.float32(epsilon),np.int32(+1), #plus one!!
+                         block=(recon.NumG,1,1),grid=(1,1))
+    return cov,mean,diffH[0]-diff_init
+
+def ChangeOneVoxel_L1(recon,x,y,mean,realMapsD,falseMapsD,
+        XD,YD,OffsetD,MaskD,TrueMaskD,diffD,S_gpu,
+        NumD=10000,numCut=50,cov=1e-6*np.eye(9),epsilon=1e-6,MaxIter=3,BlockSize=256,debug=False):
+    if recon.GsLoaded==False:
+        recon.loadGs()
+    #remove the original hit
+    S=mean
+    cuda.memcpy_htod(S_gpu,S.ravel().astype(np.float32))
+    recon.sim_strain_func(XD,YD,OffsetD,MaskD,TrueMaskD,
+            np.float32(x), np.float32(y),recon.afDetInfoD,S_gpu,
+            recon.whichOmegaD,np.int32(1),np.int32(recon.NumG),
+                  np.float32(recon.Cfg.energy),np.int32(45),recon.LimD,np.int32(5),
+             block=(recon.NumG,1,1),grid=(1,1))
+    recon.One_func(XD,YD,OffsetD,MaskD,TrueMaskD,
+                         falseMapsD,np.int32(recon.NumG),np.int32(45),
+                         np.float32(epsilon),np.int32(-1), #minus one!!
+                         block=(recon.NumG,1,1),grid=(1,1))
+    #find a better distortion matrix
+    for ii in range(MaxIter):
+        S=np.empty((NumD,3,3),dtype=np.float32)
+        S[0,:,:]=mean
+        S[1:,:,:]=np.random.multivariate_normal(
+            mean.ravel(),cov,size=(NumD-1)).reshape((NumD-1,3,3),order='C')
+        cuda.memcpy_htod(S_gpu,S.ravel().astype(np.float32))
+        recon.sim_strain_func(XD,YD,OffsetD,MaskD,TrueMaskD,
+                np.float32(x), np.float32(y),recon.afDetInfoD,S_gpu,
+                recon.whichOmegaD,np.int32(NumD),np.int32(recon.NumG),
+                      np.float32(recon.Cfg.energy),np.int32(45),recon.LimD,np.int32(5),
+                 block=(recon.NumG,1,1),grid=(NumD,1))
+        recon.L1_diff_func(diffD,
+                    XD,YD,OffsetD,MaskD,TrueMaskD,
+                    realMapsD,falseMapsD,
+                    np.int32(recon.NumG),np.int32(NumD),np.int32(45),
+                    block=(BlockSize,1,1),grid=(int(NumD/BlockSize+1),1))
+        diffH=diffD.get()
+        args=np.argpartition(diffH,numCut)[:numCut]
+        cov=np.cov(S[args].reshape((numCut,9),order='C').T)
+        mean=np.mean(S[args],axis=0)
+        if ii==0:
+            diff_init=diffH[0]
+        if debug:
+            print(np.min(diffH),diffH[0])
+    #add the new hit
+    S=mean
+    cuda.memcpy_htod(S_gpu,S.ravel().astype(np.float32))
+    recon.sim_strain_func(XD,YD,OffsetD,MaskD,TrueMaskD,
+            np.float32(x), np.float32(y),recon.afDetInfoD,S_gpu,
+            recon.whichOmegaD,np.int32(1),np.int32(recon.NumG),
+                  np.float32(recon.Cfg.energy),np.int32(45),recon.LimD,np.int32(5),
+             block=(recon.NumG,1,1),grid=(1,1))
+
+    recon.L1_diff_func(diffD,
+                XD,YD,OffsetD,MaskD,TrueMaskD,
+                realMapsD,falseMapsD,
+                np.int32(recon.NumG),np.int32(1),np.int32(45),
+                block=(BlockSize,1,1),grid=(int(NumD/BlockSize+1),1))
+    diffH=diffD.get()
+
+    recon.One_func(XD,YD,OffsetD,MaskD,TrueMaskD,
                          falseMapsD,np.int32(recon.NumG),np.int32(45),np.float32(epsilon),np.int32(+1), #plus one!!
                          block=(recon.NumG,1,1),grid=(1,1))
     return cov,mean,diffH[0]-diff_init

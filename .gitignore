@@ -6,3 +6,5 @@
 *.prof
 
 .ipynb_checkpoints/
+
+playground/

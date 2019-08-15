@@ -237,7 +237,20 @@ __global__ void KL_total(float *afKL,
 	}
 }
 
-__global__ void KL_ChangeOne(const int *aiX, const int *aiY, const int *aiOffset, const bool *abMask, const bool *abtrueMask,
+__global__ void L1_total(float *afL1,
+		const float *realMap, const float *fakeMap,int jj, int iNumG, int iNumFrame){
+	int j=threadIdx.x;
+	int i=blockIdx.x;
+	if(i<300*160&& j<iNumFrame){
+		uint pixelIdx=i*iNumG*iNumFrame+j+jj*iNumFrame;
+		float fake=fakeMap[pixelIdx];
+		float real=realMap[pixelIdx];
+		afL1[i+j*300*160]=fminf(fake,fabsf(fake-real));
+	}
+}
+
+
+__global__ void ChangeOne(const int *aiX, const int *aiY, const int *aiOffset, const bool *abMask, const bool *abtrueMask,
 		float* __restrict__ fakeMap,
 		int iNumG, int iNumFrame,float epsilon, int one){
 	int i=blockIdx.x*blockDim.x+threadIdx.x;// id of G vector
@@ -270,6 +283,31 @@ __global__ void KL_diff(float *afKLdiff,
 				ftmp=(fake+1)*logf(fake+1)-realLog-fake*logf(fake);
 			}
 			afKLdiff[i]+=ftmp;
+		}
+	}
+}
+
+
+__global__ void L1_diff(float *afL1diff,
+		const int* __restrict__ aiX, const int*  __restrict__ aiY, 
+		const int* __restrict__  aiOffset, const bool*  __restrict__ abMask, const bool*  __restrict__ abtrueMask,
+		const float* __restrict__ realMap, const float* __restrict__ fakeMap,
+		int iNumG, int iNumD, int iNumFrame){
+	int i=blockIdx.x * blockDim.x + threadIdx.x; // id of distortion matrix
+	if(i<iNumD){
+		afL1diff[i]=0;
+		for(int jj=0;jj<iNumG;jj++){
+			float ftmp;
+			uint tmpIdx=i*iNumG+jj;
+			if(!abtrueMask[tmpIdx]){ftmp=0.0;}//hit outside of Detector
+			else if(!abMask[tmpIdx]){ftmp=10;}//hit outside of Window
+			else{
+				uint pixelIdx=aiY[tmpIdx]*300*iNumG*iNumFrame+aiX[tmpIdx]*iNumG*iNumFrame+aiOffset[tmpIdx]+iNumFrame*jj;
+				float fake=fakeMap[pixelIdx];
+				float real=realMap[pixelIdx];
+				ftmp=fabsf(fake+1-real)-fabsf(fake-real);
+			}
+			afL1diff[i]+=ftmp;
 		}
 	}
 }

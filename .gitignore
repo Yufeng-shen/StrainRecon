@@ -6,5 +6,6 @@
 *.prof
 
 .ipynb_checkpoints/
+.idea/
 
 playground/

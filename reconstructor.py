@@ -156,7 +156,8 @@ class Reconstructor:
         return AllMaxS, np.array(history)
 
     def Transform2RealS(self, AllMaxS):
-        S = np.array(AllMaxS) + (self.recon.AvgStrain - np.eye(3))
+        # convert it from reciprocal space to real space
+        S = np.array(AllMaxS) + (self.recon.avg_distortion - np.eye(3))
         realS = np.empty(AllMaxS.shape)
         realO = np.empty(AllMaxS.shape)
         for ii in range(len(realS)):

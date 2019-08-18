@@ -82,7 +82,7 @@ class Initializer:
             self.Gs = np.array(f['Gs'], dtype=np.float32)
             self.NumG = len(self.Gs)
             self.orienM = np.array(f['OrienM'])
-            self.AvgStrain = np.array(f['AvgStrain'])
+            self.avg_distortion = np.array(f['avg_distortion'])
             self.GsGenerated = True
 
     # transfer the ExpImgs and all Gs to texture memory
@@ -112,23 +112,19 @@ class Initializer:
         self.ImLoaded = True
 
     def loadGs(self):
-        if self.GsGenerated == False:
+        if not self.GsGenerated:
             raise RuntimeError('Gs are not generated yet')
         self.tGref.set_array(cuda.matrix_to_array(np.transpose(self.Gs).astype(np.float32), order='F'))
         self.GsLoaded = True
 
-    def generateGs(self, pos, orien, AvgStrain):
+    def generateGs(self, pos, orien, avg_distortion):
         self.pos = np.array(pos)
         self.orien = np.array(orien)
         self.orienM = Rot.EulerZXZ2Mat(self.orien / 180.0 * np.pi)
-        self.AvgStrain = AvgStrain
-        #        Ps,self.Gs,Info=Gsim.GetProjectedVertex(self.Det,
-        #                self.sample,self.orienM,self.Cfg.etalimit/180.0*np.pi,
-        #                self.pos,getPeaksInfo=True,
-        #                omegaL=self.Cfg.omgRange[0],
-        #                omegaU=self.Cfg.omgRange[1],energy=self.Cfg.energy)
+        self.avg_distortion = avg_distortion
+
         Ps, self.Gs, Info = Gsim.GetProjectedVertex(self.Det,
-                                                    self.sample, self.AvgStrain.dot(self.orienM),
+                                                    self.sample, self.avg_distortion.dot(self.orienM),
                                                     self.Cfg.etalimit / 180.0 * np.pi,
                                                     self.pos, getPeaksInfo=True,
                                                     omegaL=self.Cfg.omgRange[0],
@@ -151,7 +147,7 @@ class Initializer:
             Lims.append((x1, x2, y1, y2, omegid))
         self.LimH = np.array(Lims, dtype=np.int32)
         self.LimD = gpuarray.to_gpu(self.LimH)
-        ## whichOmega for choosing between omega1 and omega2
+        # whichOmega for choosing between omega1 and omega2
         self.whichOmega = np.zeros(len(Lims), dtype=np.int32)
         for ii in range(len(Lims)):
             if Info[ii]['WhichOmega'] == 'b':

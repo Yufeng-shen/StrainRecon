@@ -6,9 +6,9 @@ def CrossEntropyMethod(recon, x, y,
                        XD, YD, OffsetD, MaskD, TrueMaskD, scoreD, S_gpu,
                        NumD=10000, numCut=100, cov=1e-5 * np.eye(9), MaxIter=100, mean=np.eye(3), BlockSize=256,
                        debug=False):
-    if recon.ImLoaded == False:
+    if not recon.ImLoaded:
         recon.loadIm()
-    if recon.GsLoaded == False:
+    if not recon.GsLoaded:
         recon.loadGs()
 
     for ii in range(MaxIter):
@@ -43,7 +43,7 @@ def CrossEntropyMethod(recon, x, y,
 def ChangeOneVoxel_KL(recon, x, y, mean, realMapsLogD, falseMapsD,
                       XD, YD, OffsetD, MaskD, TrueMaskD, diffD, S_gpu,
                       NumD=10000, numCut=50, cov=1e-6 * np.eye(9), epsilon=1e-6, MaxIter=3, BlockSize=256, debug=False):
-    if recon.GsLoaded == False:
+    if not recon.GsLoaded:
         recon.loadGs()
     # remove the original hit
     S = mean
@@ -107,7 +107,7 @@ def ChangeOneVoxel_KL(recon, x, y, mean, realMapsLogD, falseMapsD,
 def ChangeOneVoxel_L1(recon, x, y, mean, realMapsD, falseMapsD,
                       XD, YD, OffsetD, MaskD, TrueMaskD, diffD, S_gpu,
                       NumD=10000, numCut=50, cov=1e-6 * np.eye(9), epsilon=1e-6, MaxIter=3, BlockSize=256, debug=False):
-    if recon.GsLoaded == False:
+    if not recon.GsLoaded:
         recon.loadGs()
     # remove the original hit
     S = mean

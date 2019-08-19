@@ -113,7 +113,7 @@ class Simulator:
         # r is the orientation in real space
         r = np.zeros_like(v)
         for ii in range(len(r)):
-            r[ii] = Rot.EulerZXZ2Mat(np.array(tmpPh1[ii], tmpPsi[ii], tmpPh2[ii])/180.0*np.pi)
+            r[ii] = Rot.EulerZXZ2Mat(np.array([tmpPh1[ii], tmpPsi[ii], tmpPh2[ii]])/180.0*np.pi)
 
         # ss is the distortion in reciprocal space
         ss = np.zeros_like(v)

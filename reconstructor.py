@@ -161,9 +161,7 @@ class Reconstructor:
         realS = np.empty(AllMaxS.shape)
         realO = np.empty(AllMaxS.shape)
         for ii in range(len(realS)):
-            # lattice constant I used in python nfHEDM scripts are different from the ffHEDM reconstruction used
-            t = np.linalg.inv(S[ii].T).dot(self.recon.orienM).dot(
-                [[2.95 / 2.9254, 0, 0], [0, 2.95 / 2.9254, 0], [0, 0, 4.7152 / 4.674]])
+            t = np.linalg.inv(S[ii].T).dot(self.recon.orienM)
             realO[ii], realS[ii] = polar(t, 'left')
         return realO, realS
 
@@ -222,8 +220,8 @@ class Reconstructor:
                 self.SimPhase1Result(x, y, AllMaxS)
                 AllMaxS, history = self.ReconGridsPhase2(x, y, AllMaxS, fidelity='KL')
                 f.create_dataset("Phase2_S", data=AllMaxS)
-                #                KLd=self.KL_eachG()
-                #                f.create_dataset("final_KLdivergence",data=KLd)
+                KLd=self.KL_eachG()
+                f.create_dataset("final_KLdivergence",data=KLd)
                 f.create_dataset('Phase2_history', data=history)
 
                 realO, realS = self.Transform2RealS(AllMaxS)

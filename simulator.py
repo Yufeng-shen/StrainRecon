@@ -13,7 +13,7 @@ import h5py
 
 class Simulator:
 
-    def __init__(self, Cfg, orig=[-0.256, -0.256], step=[0.002, 0.002], scale=10, factor=20, blur=True, noise_level=0):
+    def __init__(self, Cfg, orig=[-0.256, -0.256], step=[0.002, 0.002], scale=10, factor=20, blur=True):
         """
         scale: refine the grid by 'scale' times
         factor: multiply the strain by 'factor'
@@ -24,7 +24,6 @@ class Simulator:
         self.scale = scale
         self.factor = factor
         self.blur = blur
-        self.noise_level = noise_level
         # create a finer grid for more realistic simulation
         FakeSample = self.FakeSample
         finerDilation = zoom(FakeSample[0], zoom=scale, order=0) * factor
@@ -144,15 +143,5 @@ class Simulator:
         f.create_dataset("MaxInt", data=MaxInt)
 
     def _addNoise(self, images, g_vector):
-        return images
+        return images + np.random.poisson(np.ones(images.shape) * self.Cfg.noiseLevel)
 
-    def Transform2RealS(self, AllMaxS):
-        AllMaxS = np.array(AllMaxS)
-        realS = np.empty(AllMaxS.shape)
-        realO = np.empty(AllMaxS.shape)
-        for ii in range(len(realS)):
-            # lattice constant I used in python nfHEDM scripts are different from the ffHEDM reconstruction used
-            t = np.linalg.inv(AllMaxS[ii].T).dot(self.grainOrienM).dot(
-                [[2.95 / 2.9254, 0, 0], [0, 2.95 / 2.9254, 0], [0, 0, 4.7152 / 4.674]])
-            realO[ii], realS[ii] = polar(t, 'left')
-        return realO, realS

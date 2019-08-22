@@ -3,7 +3,7 @@ import yaml
 
 class Config:
 
-    def __init__(self, cfgFn='ConfigFiles/SimG40.yml'):
+    def __init__(self, cfgFn):
         with open(cfgFn) as f:
             dataMap = yaml.safe_load(f)
 

@@ -21,37 +21,46 @@ class Reconstructor:
         self.outFN = Cfg.recFile
         self.micFN = Cfg.micFile
 
-    def GetGrids(self, threshold=1, fileType='npy', orig=[-0.256, -0.256], step=[0.002, 0.002]):
-        if fileType == 'mic':
-            sw, snp = read_mic_file(self.micFN)
-            t = snp[:, 6:9] - np.tile(np.array(self.grainOrien), (snp.shape[0], 1))
-            t = np.absolute(t) < threshold
-            t = t[:, 0] * t[:, 1] * t[:, 2]  # voxels that within 1 degree misorientation
-            t = snp[t]
-            x = t[:, 0]
-            y = t[:, 1]
-            con = t[:, 9]
-        elif fileType == 'ang':
-            snp = np.loadtxt(self.micFN, comments="#")
-            t = snp[:, 2:5] - np.tile(np.array(self.grainOrien), (snp.shape[0], 1))
-            t = np.absolute(t) < threshold
-            t = t[:, 0] * t[:, 1] * t[:, 2]
-            t = snp[t]
-            x = t[:, 0]
-            y = t[:, 1]
-            con = t[:, 5]
-        elif fileType == 'npy':
-            FakeSample = np.load(self.micFN)
-            GIDLayer = FakeSample[7].astype(int)
-            tmpx = np.arange(orig[0], step[0] * GIDLayer.shape[0] + orig[0], step[0])
-            tmpy = np.arange(orig[1], step[1] * GIDLayer.shape[1] + orig[1], step[1])
-            xv, yv = np.meshgrid(tmpx, tmpy)
-            idx = np.where(GIDLayer == self.Cfg.grainID)
-            x = xv[idx]
-            y = yv[idx]
-            con = np.ones(x.shape)
-        else:
-            print('fileType need to be mic or ang or npy')
+    def GetGrids(self, orig=(-0.256, -0.256), step=(0.002, 0.002), dil_and_ero=0):
+        assert type(dil_and_ero) == int
+        FakeSample = np.load(self.micFN)
+        GIDLayer = FakeSample[7].astype(int)
+        len1 = GIDLayer.shape[0]
+        len2 = GIDLayer.shape[1]
+        tmpx = np.arange(orig[0], step[0] * len1 + orig[0], step[0])
+        tmpy = np.arange(orig[1], step[1] * len2 + orig[1], step[1])
+        while True:
+            if dil_and_ero == 0:
+                break
+            elif dil_and_ero > 0:
+                dil_and_ero = dil_and_ero - 1
+                xidx, yidx = np.where(GIDLayer == self.Cfg.grainID)
+                for ii in range(len(xidx)):
+                    GIDLayer[min(xidx[ii] + 1, len1), min(yidx[ii] + 1, len2)] = self.Cfg.grainID
+                    GIDLayer[min(xidx[ii] + 1, len1), max(yidx[ii] - 1, 0)] = self.Cfg.grainID
+                    GIDLayer[max(xidx[ii] - 1, 0), min(yidx[ii] + 1, len2)] = self.Cfg.grainID
+                    GIDLayer[max(xidx[ii] - 1, 0), max(yidx[ii] - 1, 0)] = self.Cfg.grainID
+            else:
+                dil_and_ero = dil_and_ero + 1
+                xidx, yidx = np.where(GIDLayer == self.Cfg.grainID)
+                xs = []
+                ys = []
+                for ii in range(len(xidx)):
+                    stay_flag = True
+                    stay_flag = stay_flag * (GIDLayer[min(xidx[ii] + 1, len1), min(yidx[ii] + 1, len2)] == self.Cfg.grainID)
+                    stay_flag = stay_flag * (GIDLayer[min(xidx[ii] + 1, len1), max(yidx[ii] - 1, 0)] == self.Cfg.grainID)
+                    stay_flag = stay_flag * (GIDLayer[max(xidx[ii] - 1, 0), min(yidx[ii] + 1, len2)] == self.Cfg.grainID)
+                    stay_flag = stay_flag * (GIDLayer[max(xidx[ii] - 1, 0), max(yidx[ii] - 1, 0)] == self.Cfg.grainID)
+                    if not stay_flag:
+                        xs.append(xidx[ii])
+                        ys.append(yidx[ii])
+                for ii in range(len(xs)):
+                    GIDLayer[xs[ii], ys[ii]] = self.Cfg.grainID - 1
+        xv, yv = np.meshgrid(tmpx, tmpy)
+        idx = np.where(GIDLayer == self.Cfg.grainID)
+        x = xv[idx]
+        y = yv[idx]
+        con = np.ones(x.shape)
         return x, y, con
 
     def ReconGridsPhase1(self, tmpxx, tmpyy, NumD=10000, numCut=100):
@@ -208,7 +217,7 @@ class Reconstructor:
             f.close()
         else:
             with h5py.File(self.outFN, 'w') as f:
-                x, y, con = self.GetGrids()
+                x, y, con = self.GetGrids(dil_and_ero=self.Cfg.dil_and_ero)
                 f.create_dataset("x", data=x)
                 f.create_dataset("y", data=y)
                 f.create_dataset("IceNineConf", data=con)

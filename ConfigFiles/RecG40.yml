@@ -36,6 +36,7 @@ atoms: #atom position and z number
 maxQ: 13
 
 grainID: 40
+dil_ang_ero: 0
 
 # Files and file path
 

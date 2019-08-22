@@ -143,5 +143,8 @@ class Simulator:
         f.create_dataset("MaxInt", data=MaxInt)
 
     def _addNoise(self, images, g_vector):
-        return images + np.random.poisson(np.ones(images.shape) * self.Cfg.noiseLevel)
+        PEAK=1/(self.Cfg.noiseLevel+1e-4)
+        noisy = np.random.poisson(images  * PEAK) / PEAK
+        return noisy
+        #return images + np.random.poisson(np.ones(images.shape) * self.Cfg.noiseLevel)
 

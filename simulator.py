@@ -124,7 +124,7 @@ class Simulator:
         simulator = Initializer(self.Cfg)
         simulator.generateGs(self.Positions[gid], self.EAngles[gid], avg_distortion)
 
-        peakMap = simulator.simMap(xs, ys, ss - (avg_distortion - np.eye(3)), blur=True, dtype=np.uint16)
+        peakMap = simulator.simMap(xs, ys, ss - (avg_distortion - np.eye(3)), blur=self.blur, dtype=np.uint16)
 
         f = h5py.File(self.outFN, 'w')
         f.create_dataset("limits", data=simulator.LimH)

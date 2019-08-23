@@ -94,8 +94,8 @@ class Reconstructor:
             tmp = np.array(self.peakFile['Imgs']['Im{0:d}'.format(ii)])
             realMaps[:tmp.shape[0], :tmp.shape[1], ii * 45:(ii + 1) * 45] = tmp
 
-        #        realMaps=realMaps/(np.sum(realMaps)/np.sum(falseMaps))
-        realMaps = np.around(realMaps / (np.sum(realMaps) / np.sum(falseMaps)))
+        realMaps = realMaps/(np.sum(realMaps)/np.sum(falseMaps))
+        #realMaps = np.around(realMaps / (np.sum(realMaps) / np.sum(falseMaps)))
         self.falseMapsD = gpuarray.to_gpu((falseMaps.ravel() + epsilon).astype(np.float32))
         self.realMapsLogD = gpuarray.to_gpu(np.log(realMaps.ravel() + epsilon).astype(np.float32))
         self.realMapsD = gpuarray.to_gpu((realMaps.ravel() + epsilon).astype(np.float32))

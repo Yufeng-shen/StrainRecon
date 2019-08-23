@@ -124,7 +124,7 @@ class Simulator:
         simulator = Initializer(self.Cfg)
         simulator.generateGs(self.Positions[gid], self.EAngles[gid], avg_distortion)
 
-        peakMap = simulator.simMap(xs, ys, ss - (avg_distortion - np.eye(3)), blur=True, dtype=np.uint16)
+        peakMap = simulator.simMap(xs, ys, ss - (avg_distortion - np.eye(3)), blur=self.blur, dtype=np.uint16)
 
         f = h5py.File(self.outFN, 'w')
         f.create_dataset("limits", data=simulator.LimH)
@@ -143,8 +143,10 @@ class Simulator:
         f.create_dataset("MaxInt", data=MaxInt)
 
     def _addNoise(self, images, g_vector):
-        PEAK=1/(self.Cfg.noiseLevel+1e-4)
-        noisy = np.random.poisson(images  * PEAK) / PEAK
+        PEAK = 1/(self.Cfg.noiseLevel+1e-4)
+        lam = self.Cfg.noiseLevel * 4
+        saltRatio = 0.7
+        noisy = np.random.poisson(images  * PEAK) / PEAK + \
+                np.random.poisson(np.ones(images.shape)) * lam *(np.random.uniform(size=images.shape)>saltRatio)
         return noisy
-        #return images + np.random.poisson(np.ones(images.shape) * self.Cfg.noiseLevel)
 

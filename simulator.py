@@ -80,19 +80,6 @@ class Simulator:
         tmpPsi = self.finerSample[9][idx]
         tmpPh2 = self.finerSample[10][idx]
 
-        # This is wrong, the strain of lattice parameters and inverse lattice parameters (Gs) are
-        # different, see the Transform2RealS function. S^(-T)O=PU. And I also assume orientations are
-        # the same as averaged orientation: O=U. I'm just lazy, I will correct it later.
-        # ss = np.zeros((len(xs), 3, 3))
-        # ss[:, 0, 0] = tmpE11 + 1
-        # ss[:, 0, 1] = tmpE12
-        # ss[:, 0, 2] = tmpE13
-        # ss[:, 1, 0] = ss[:, 0, 1]
-        # ss[:, 2, 0] = ss[:, 0, 2]
-        # ss[:, 1, 1] = tmpE22 + 1
-        # ss[:, 1, 2] = tmpE23
-        # ss[:, 2, 1] = ss[:, 1, 2]
-        # ss[:, 2, 2] = tmpE33 + 1
 
         # v is the strain in real space
         v = np.zeros((len(xs), 3, 3))

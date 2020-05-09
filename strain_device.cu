@@ -275,7 +275,7 @@ __global__ void KL_diff(float *afKLdiff,
 			float ftmp;
 			uint tmpIdx=i*iNumG+jj;
 			if(!abtrueMask[tmpIdx]){ftmp=0.0;}//hit outside of Detector
-			else if(!abMask[tmpIdx]){ftmp=10;}//hit outside of Window
+			else if(!abMask[tmpIdx]){ftmp=20;}//hit outside of Window
 			else{
 				uint pixelIdx=aiY[tmpIdx]*300*iNumG*iNumFrame+aiX[tmpIdx]*iNumG*iNumFrame+aiOffset[tmpIdx]+iNumFrame*jj;
 				float fake=fakeMap[pixelIdx];

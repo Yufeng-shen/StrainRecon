@@ -44,7 +44,7 @@ noiseLevel: 0
 peakFile: 'SimResult/grain_40_sim.hdf5'
 
 # input file for simulation mode
-micFile: 'AuxData/Ti7FFT.npy'
+micFile: 'micFile/Ti7FFT.hdf5'
 
 # will be neglect under simulation mode
 recFile: 'RecResult/grain_40_rec.hdf5'

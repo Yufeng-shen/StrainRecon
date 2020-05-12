@@ -36,7 +36,6 @@ atoms: #atom position and z number
 maxQ: 13
 
 grainID: 40
-dil_and_ero: 0
 
 # Files and file path
 
@@ -44,7 +43,7 @@ dil_and_ero: 0
 peakFile: 'SimResult/grain_40_sim.hdf5'
 
 # input file for reconstruction mode
-micFile: 'AuxData/Ti7FFT.npy'
+micFile: 'micFile/Ti7FFT.hdf5'
 
 # output file of reconstruction mode
 recFile: 'RecResult/grain_40_rec.hdf5'

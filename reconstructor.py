@@ -21,47 +21,28 @@ class Reconstructor:
         self.outFN = Cfg.recFile
         self.micFN = Cfg.micFile
 
-    def GetGrids(self, orig=(-0.256, -0.256), step=(0.002, 0.002), dil_and_ero=0):
-        assert type(dil_and_ero) == int
-        FakeSample = np.load(self.micFN)
-        GIDLayer = FakeSample[7].astype(int)
-        len1 = GIDLayer.shape[0]
-        len2 = GIDLayer.shape[1]
-        tmpx = np.arange(orig[0], step[0] * len1 + orig[0], step[0])
-        tmpy = np.arange(orig[1], step[1] * len2 + orig[1], step[1])
-        while True:
-            if dil_and_ero == 0:
-                break
-            elif dil_and_ero > 0:
-                dil_and_ero = dil_and_ero - 1
-                xidx, yidx = np.where(GIDLayer == self.Cfg.grainID)
-                for ii in range(len(xidx)):
-                    GIDLayer[min(xidx[ii] + 1, len1), min(yidx[ii] + 1, len2)] = self.Cfg.grainID
-                    GIDLayer[min(xidx[ii] + 1, len1), max(yidx[ii] - 1, 0)] = self.Cfg.grainID
-                    GIDLayer[max(xidx[ii] - 1, 0), min(yidx[ii] + 1, len2)] = self.Cfg.grainID
-                    GIDLayer[max(xidx[ii] - 1, 0), max(yidx[ii] - 1, 0)] = self.Cfg.grainID
-            else:
-                dil_and_ero = dil_and_ero + 1
-                xidx, yidx = np.where(GIDLayer == self.Cfg.grainID)
-                xs = []
-                ys = []
-                for ii in range(len(xidx)):
-                    stay_flag = True
-                    stay_flag = stay_flag * (GIDLayer[min(xidx[ii] + 1, len1), min(yidx[ii] + 1, len2)] == self.Cfg.grainID)
-                    stay_flag = stay_flag * (GIDLayer[min(xidx[ii] + 1, len1), max(yidx[ii] - 1, 0)] == self.Cfg.grainID)
-                    stay_flag = stay_flag * (GIDLayer[max(xidx[ii] - 1, 0), min(yidx[ii] + 1, len2)] == self.Cfg.grainID)
-                    stay_flag = stay_flag * (GIDLayer[max(xidx[ii] - 1, 0), max(yidx[ii] - 1, 0)] == self.Cfg.grainID)
-                    if not stay_flag:
-                        xs.append(xidx[ii])
-                        ys.append(yidx[ii])
-                for ii in range(len(xs)):
-                    GIDLayer[xs[ii], ys[ii]] = self.Cfg.grainID - 1
-        xv, yv = np.meshgrid(tmpx, tmpy)
+    def GetGrids(self):
+        Sample = h5py.File(self.micFN,'r')
+        
+        GIDLayer = Sample["GrainID"][:].astype(int)
+        
+        if ("Xcoordinate" in Sample.keys()) and ("Ycoordinate" in Sample.keys()):
+            xv = Sample["Xcoordinate"][:]
+            yv = Sample["Ycoordinate"][:]
+        else:      
+            len1 = GIDLayer.shape[1]
+            len2 = GIDLayer.shape[0]
+            orig = Sample["origin"][:]
+            step = Sample["stepSize"][:]
+            tmpx = np.arange(orig[0], step[0] * len1 + orig[0], step[0])
+            tmpy = np.arange(orig[1], step[1] * len2 + orig[1], step[1])
+            xv, yv = np.meshgrid(tmpx, tmpy)
+            
         idx = np.where(GIDLayer == self.Cfg.grainID)
         x = xv[idx]
         y = yv[idx]
-        con = np.ones(x.shape)
-        return x, y, con
+        Sample.close()
+        return x, y
 
     def ReconGridsPhase1(self, tmpxx, tmpyy, NumD=10000, numCut=100):
         # allocate gpu memory
@@ -94,7 +75,6 @@ class Reconstructor:
             tmp = np.array(self.peakFile['Imgs']['Im{0:d}'.format(ii)])
             realMaps[:tmp.shape[0], :tmp.shape[1], ii * 45:(ii + 1) * 45] = tmp
 
-        #realMaps = realMaps/(np.sum(realMaps)/np.sum(falseMaps))
         self.falseMapsD = gpuarray.to_gpu((falseMaps.ravel() + epsilon).astype(np.float32))
         self.realMapsLogD = gpuarray.to_gpu(np.log(realMaps.ravel() + epsilon).astype(np.float32))
         self.realMapsD = gpuarray.to_gpu((realMaps.ravel() + epsilon).astype(np.float32))
@@ -180,22 +160,6 @@ class Reconstructor:
             x = f["x"][:]
             y = f["y"][:]
             AllMaxS = f["Phase1_S"][:]
-            #            ######################################################
-            #            #test
-            #            #####################################################
-            #            Conf=f["Phase1_Conf"][:]
-            #            AllMaxS=f["Phase1_S"][:]
-            #            mask=Conf>60
-            #            x=x[mask]
-            #            y=y[mask]
-            #            AllMaxS=AllMaxS[mask]
-            #
-            #            self.SimPhase1Result(x,y,AllMaxS)
-            #            AllMaxS,history=self.ReconGridsPhase2(x,y,AllMaxS,iterN=10,shuffle=True)
-            #            f.create_dataset("OnlyOver60_S",data=AllMaxS)
-            #            f.create_dataset("OnlyOver60_x",data=x)
-            #            f.create_dataset("OnlyOver60_y",data=y)
-            #####################################################
             self.SimPhase1Result(x, y, AllMaxS)
             AllMaxS, history = self.ReconGridsPhase2(x, y, AllMaxS, iterN=10, shuffle=True)
             tmp = f["Phase2_S"]
@@ -216,10 +180,9 @@ class Reconstructor:
             f.close()
         else:
             with h5py.File(self.outFN, 'w') as f:
-                x, y, con = self.GetGrids(dil_and_ero=self.Cfg.dil_and_ero)
+                x, y = self.GetGrids()
                 f.create_dataset("x", data=x)
                 f.create_dataset("y", data=y)
-                f.create_dataset("IceNineConf", data=con)
 
                 AllMaxScore, AllMaxS = self.ReconGridsPhase1(x, y)
                 f.create_dataset("Phase1_Conf", data=AllMaxScore)

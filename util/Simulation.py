@@ -62,7 +62,8 @@ def frankie_angles_from_g(g, verbo=True, energy=50):
 
 
 class Detector:
-    def __init__(self, psizeJ=0.00148, psizeK=0.00148, pnJ=2048, pnK=2048, J=0, K=0, trans=np.array([0, 0, 0]),
+    def __init__(self, psizeJ=0.00148, psizeK=0.00148, pnJ=2048, pnK=2048,
+                 J=0, K=0, trans=np.array([0, 0, 0]),
                  tilt=np.eye(3)):
         self.__Norm = np.array([0, 0, 1])
         self.__CoordOrigin = np.array([0., 0., 0.])
@@ -78,44 +79,57 @@ class Detector:
         self.__tilt0 = tilt
         self.Move(J, K, trans, tilt)
 
-    @property
-    def CoordOrigin(self):
-        return self.__CoordOrigin
 
     @property
     def Norm(self):
-        return self.__Norm
-
+        return self.__Norm.copy()
+    @property
+    def CoordOrigin(self):
+        return self.__CoordOrigin.copy()
     @property
     def Jvector(self):
-        return self.__Jvector
-
+        return self.__Jvector.copy()
     @property
     def Kvector(self):
-        return self.__Kvector
-
-    def Move(self, J, K, trans, tilt):
-        self.__CoordOrigin -= J * self.__Jvector * self.__PixelJ + K * self.__Kvector * self.__PixelK
-        self.__CoordOrigin = tilt.dot(self.__CoordOrigin) + trans
-        self.__Norm = tilt.dot(self.__Norm)
-        self.__Jvector = tilt.dot(self.__Jvector)
-        self.__Kvector = tilt.dot(self.__Kvector)
-
-    def IntersectionIdx(self, ScatterSrc, TwoTheta, eta, bIdx=True):
-        dist = self.__Norm.dot(self.__CoordOrigin - ScatterSrc)
-        scatterdir = np.array([np.cos(TwoTheta), np.sin(TwoTheta) * np.sin(eta), np.sin(TwoTheta) * np.cos(eta)])
-        InterPos = dist / (self.__Norm.dot(scatterdir)) * scatterdir + ScatterSrc
-        J = (self.__Jvector.dot(InterPos - self.__CoordOrigin) / self.__PixelJ)
-        K = (self.__Kvector.dot(InterPos - self.__CoordOrigin) / self.__PixelK)
-        if 0 <= np.floor(J) < self.__NPixelJ and 0 <= np.floor(K) < self.__NPixelK:
-            if bIdx == True:
-                return np.floor(J), np.floor(K)
+        return self.__Kvector.copy()
+    def Move(self,J,K,trans,tilt):
+        self.__CoordOrigin-=J*self.__Jvector*self.__PixelJ+K*self.__Kvector*self.__PixelK
+        self.__CoordOrigin=tilt.dot(self.__CoordOrigin)+trans
+        self.__Norm=tilt.dot(self.__Norm)
+        self.__Jvector=tilt.dot(self.__Jvector)
+        self.__Kvector=tilt.dot(self.__Kvector)
+    def IntersectionIdx(self,ScatterSrc,TwoTheta,eta,bIdx=True,checkBoundary=True):
+        dist=self.__Norm.dot(self.__CoordOrigin-ScatterSrc)
+        scatterdir=np.array([np.cos(TwoTheta),np.sin(TwoTheta)*np.sin(eta),np.sin(TwoTheta)*np.cos(eta)])
+        InterPos=dist/(self.__Norm.dot(scatterdir))*scatterdir+ScatterSrc
+        J=(self.__Jvector.dot(InterPos-self.__CoordOrigin)/self.__PixelJ)
+        K=(self.__Kvector.dot(InterPos-self.__CoordOrigin)/self.__PixelK)
+        if checkBoundary:
+            if 0 <= np.floor(J) < self.__NPixelJ and 0 <= np.floor(K) < self.__NPixelK:
+                if bIdx==True:
+                    return np.floor(J),np.floor(K)
+                else:
+                    return J,K
             else:
-                return J, K
+                return -1
+        return J,K
+    def IntersectionIdxs(self,ScatterSrcs,TwoThetas,etas,bIdx=True):
+        ScatterSrcs=ScatterSrcs.reshape((3,-1))
+        TwoThetas=TwoThetas.ravel()
+        etas=etas.ravel()
+        dists=self.__Norm.dot(self.__CoordOrigin.reshape((3,1))-ScatterSrcs)
+        scatterdirs=np.array([np.cos(TwoThetas),np.sin(TwoThetas)*np.sin(etas),np.sin(TwoThetas)*np.cos(etas)]).reshape((3,-1))
+        InterPoss=dists/(self.__Norm.dot(scatterdirs))*scatterdirs+ScatterSrcs
+        Js=(self.__Jvector.dot(InterPoss-self.__CoordOrigin.reshape((3,1)))/self.__PixelJ)
+        Ks=(self.__Kvector.dot(InterPoss-self.__CoordOrigin.reshape((3,1)))/self.__PixelK)
+        if bIdx==False:
+            raise 'Not Implemented'
         else:
-            return -1
-
-    def BackProj(self, HitPos, omega, TwoTheta, eta):
+            Js=np.floor(Js)
+            Ks=np.floor(Ks)
+            mask=(Js>=0)*(Js<self.__NPixelJ)*(Ks>=0)*(Ks<self.__NPixelK)
+            return Js,Ks,mask
+    def BackProj(self,HitPos,omega,TwoTheta,eta):
         """
         HitPos: ndarray (3,)
                 The position of hitted point on lab coord, unit in mm

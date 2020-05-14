@@ -1,11 +1,11 @@
-mode: 'rec' # sim / rec
+mode: 'rec' # must be 'sim' or 'rec'
 
 # Experiment configurations
 energy: 51.9957 #keV
 etalimit: 81 #degree
 pixelSize: 1.454 #micron
-JCenter: 1180.24 #number of pixels
-KCenter: 2022.76 #number of pixels
+JCenter: 1180.24 #in the unit of number of pixels
+KCenter: 2022.76 #in the unit of number of pixels
 JPixelNum: 2048
 KPixelNum: 2048
 Ldistance: 7.056 #mm
@@ -17,11 +17,10 @@ omgRange: #degree
 - 0
 - 180
 
-# Configuration for material, only used for simulation
-# For reconstruction, G vectors are given in the input file
+# Configuration for material
 
 sampleName: 'Ti7'
-lattice: #1e-10 m
+lattice: #in the unit of 1e-10 m
 - 2.92539
 - 2.92539
 - 4.67399
@@ -41,10 +40,13 @@ grainID: 15
 # Files and file path
 
 # input file for reconstruction mode
+# output file of simulation mode
 peakFile: 'RealPeaks/RealSample_g15.hdf5'
 
 # input file for reconstruction mode
+# input file for simulation mode
 micFile: 'micFile/Ti7HRM2nd.hdf5'
 
 # output file of reconstruction mode
+# neglected by simulation mode
 recFile: 'playground/Real_g15.hdf5'

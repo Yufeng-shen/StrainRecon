@@ -53,11 +53,11 @@ In the whole reconstruction procedure, there are four kinds of files:
 - [Reconstruction file](#recfile-format): Files in the folder recFile/. They contain the reconstructed strain values.
 
 ### peakFile format
-It is a hdf5 file, which stores the Bragg peak patterns in windows along with other information about the experiment. As of now, the window size is fixed as (&Delta;J=300, &Delta;K=160, &Delta;&Omega;=45), the units are number of pixels, number of pixels, and number of frames. The datasets are: (assuming there are N+1 peaks recorded)
+It is a hdf5 file, which stores the Bragg peak patterns in windows along with other information about the experiment. As of now, the window size is fixed as (&Delta;J=300, &Delta;K=160, &Delta;&Omega;=45), the units are number of pixels, number of pixels, and number of frames. The datasets are: (assuming there are N peaks recorded)
 
-- "/Gs": shape of (N+1,3). The corresponding reciprocal vectors before distortion. 
+- "/Gs": shape of (N,3). The corresponding reciprocal vectors before distortion. 
 
-- "/MaxInt": shape of (N+1). The maximum intensities of peaks.
+- "/MaxInt": shape of (N). The maximum intensities of peaks.
 
 - "/OrienM": shape of (3,3). The average orientation of the grain.
 
@@ -65,14 +65,15 @@ It is a hdf5 file, which stores the Bragg peak patterns in windows along with ot
 
 - "/avg_distortion": shape of (3,3). The strain already considered in "/Gs".
 
-- "/limits": shape of (N+1,5). The pixel coordinates of the window and the &Omega; indices of the first frame.
+- "/limits": shape of (N,5). The pixel coordinates of the window and the &Omega; indices of the first frame.
 
-- "/whichOmega": shape of (N+1). Indicate is the first or second Bragg peak of that reciprocal vectors.
+- "/whichOmega": shape of (N). Indicate is the first or second Bragg peak of that reciprocal vectors.
 
 - "/Imgs/Im0": shape of (160,300,45). The diffraction pattern of the first Bragg peak.
-...
-- "/Imgs/ImN": shape of (160,300,45). The diffraction pattern of the last Bragg peak.
 
+...
+
+An example of peak file (partial) is in the folder RealPeaks/. It is only used for demonstrating the format, so we removed the datasets "/Imgs/Im1", "/Imgs/Im2"... "/Imgs/Im91" to decrease the file size. You can also use the SimDemo.py script to generate a peak file.
 
 ### micFile format
 It is a hdf5 file, which contains following datasets: (assuming the mesh on sample cross section  has N<sub>x</sub> columns and N<sub>y</sub> rows)

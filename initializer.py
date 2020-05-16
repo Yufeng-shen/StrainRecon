@@ -134,11 +134,11 @@ class Initializer:
         dx = 150
         dy = 80
         for ii in range(self.NumG):
-            omegid = int((180 - Ps[ii, 2]) * 20) - 22  # becuase 0.05 degree step, store 45 frames
+            omegid = int((180 - Ps[ii, 2]) / self.Cfg.omgInterval) - 22  # becuase store 45 frames
             if omegid < 0:
-                omegid += 3600
-            elif omegid >= 3600:
-                omegid -= 3600
+                omegid += int(180 / self.Cfg.omgInterval)
+            elif omegid >= int(180 / self.Cfg.omgInterval):
+                omegid -= int(180 / self.Cfg.omgInterval)
             x1 = int(2047 - Ps[ii, 0] - dx)
             y1 = int(Ps[ii, 1] - dy)
             x2 = x1 + 2 * dx
@@ -196,7 +196,8 @@ class Initializer:
         self.sim_pos_func(XD, YD, OffsetD, MaskD, TrueMaskD,
                           xsD, ysD, self.afDetInfoD, ssD,
                           self.whichOmegaD, np.int32(NumD), np.int32(self.NumG),
-                          np.float32(self.Cfg.energy), np.int32(45), self.LimD, np.int32(5),
+                          np.float32(self.Cfg.energy), np.int32(45), self.LimD, 
+                          np.int32(5),self.Cfg.omgInterval,
                           block=(self.NumG, 1, 1), grid=(NumD, 1))
         xtmp = XD.get().reshape((-1, self.NumG))
         ytmp = YD.get().reshape((-1, self.NumG))

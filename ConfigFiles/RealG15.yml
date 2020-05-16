@@ -16,6 +16,7 @@ tilt:   #degree
 omgRange: #degree
 - 0
 - 180
+omgInterval: 0.05 #degree
 
 # Configuration for material
 

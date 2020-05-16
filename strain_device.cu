@@ -109,7 +109,8 @@ __device__ void Intersection(int &iJ, int &iK, bool &bMask,
 
 
 __device__ void JK2Window(int &iX, int &iY, int &iOffset, bool &bMask,
-		int iJ, int iK, float fOmega, int idx, int iNumFrame, const int* __restrict__ Lim, int LimSize){
+		int iJ, int iK, float fOmega, int idx, int iNumFrame, 
+		const int* __restrict__ Lim, int LimSize, float OmegaInterval){
 	/*
 	 * This change the pixel coordinate J, K, Omega to local window coordinate X, Y, Offset.
 	 * The index idx is the peak ID (Gs ID)
@@ -118,8 +119,8 @@ __device__ void JK2Window(int &iX, int &iY, int &iOffset, bool &bMask,
 
 		iX=2047-iJ-Lim[idx*LimSize+0];
 		iY=iK-Lim[idx*LimSize+2];
-		iOffset=int((180-fOmega*180/PI)*20)-Lim[idx*LimSize+4];
-		if (iOffset<0) {iOffset+=3600;}
+		iOffset=int((180-fOmega*180/PI)/OmegaInterval)-Lim[idx*LimSize+4];
+		if (iOffset<0) {iOffset+=int(180/OmegaInterval);}
 		bMask=(iX>=0 && iX<(Lim[idx*LimSize+1]-Lim[idx*LimSize+0]) &&
 				iY>=0 && iY<(Lim[idx*LimSize+3]-Lim[idx*LimSize+2]) && iOffset<iNumFrame);
 
@@ -129,7 +130,7 @@ __device__ void JK2Window(int &iX, int &iY, int &iOffset, bool &bMask,
 __global__ void Simulate_for_Strain(int *aiX, int *aiY, int *aiOffset, bool *abMask, bool *abtrueMask,
 		float fx, float fy, const float* __restrict__ afDetInfo, const float *afDistortion,
 		const int* __restrict__ iWhichOmega,
-		int iNumD, int iNumG, float fBeamEnergy, int iNumFrame, const int* __restrict__ Lim, int LimSize){
+		int iNumD, int iNumG, float fBeamEnergy, int iNumFrame, const int* __restrict__ Lim, int LimSize, float OmegaInterval){
 	/*
 	 * get Xs,Ys and Offsets for every G and Distortion;
 	 * Number of Gs is blockDim.x,
@@ -160,13 +161,13 @@ __global__ void Simulate_for_Strain(int *aiX, int *aiY, int *aiOffset, bool *abM
 	aScatterSrc[1]=cos(ftmpOmega)*fy+sin(ftmpOmega)*fx;
 	Intersection(iJ,iK,abtrueMask[i+j*iNumG],aScatterSrc,fTwoTheta,ftmpEta, afDetInfo);
 	JK2Window(aiX[i+j*iNumG],aiY[i+j*iNumG],aiOffset[i+j*iNumG],abMask[i+j*iNumG],
-			iJ,iK,ftmpOmega,i, iNumFrame, Lim, LimSize);
+			iJ,iK,ftmpOmega,i, iNumFrame, Lim, LimSize, OmegaInterval);
 }
 
 __global__ void Simulate_for_Pos(int *aiX, int *aiY, int *aiOffset, bool *abMask, bool *abtrueMask,
 		float *afx, float *afy, const float* __restrict__ afDetInfo, const float *afDistortion,
 		const int* __restrict__ iWhichOmega,
-		int iNumD, int iNumG, float fBeamEnergy, int iNumFrame, const int* __restrict__ Lim, int LimSize){
+		int iNumD, int iNumG, float fBeamEnergy, int iNumFrame, const int* __restrict__ Lim, int LimSize, float OmegaInterval){
 	/*
 	 * get Xs,Ys and Offsets for every G and Distortion 
      * The difference with 'Simulate_for_Strain' is this function simulate multiple xy position, each has one distortion;
@@ -198,7 +199,7 @@ __global__ void Simulate_for_Pos(int *aiX, int *aiY, int *aiOffset, bool *abMask
 	aScatterSrc[1]=cos(ftmpOmega)*afy[j]+sin(ftmpOmega)*afx[j];
 	Intersection(iJ,iK,abtrueMask[i+j*iNumG],aScatterSrc,fTwoTheta,ftmpEta, afDetInfo);
 	JK2Window(aiX[i+j*iNumG],aiY[i+j*iNumG],aiOffset[i+j*iNumG],abMask[i+j*iNumG],
-			iJ,iK,ftmpOmega,i, iNumFrame, Lim, LimSize);
+			iJ,iK,ftmpOmega,i, iNumFrame, Lim, LimSize, OmegaInterval);
 }
 
 __global__ void Hit_Score(float *afscore,

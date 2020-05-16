@@ -152,6 +152,11 @@ Other information about the reconstruction may also installed.
     - ConfigFiles/ : configure files for reconstruction or simulation.
     - util/ : some basic functions related to nf-HEDM.
   
+## TODO
+Because this software was a side product of a research project, many parameters are hard coded for a specific measurement of Ti7. Following parameters are currently hard coded and will be moved to the configure file in future developments:
 
+- The &omega; ranges from 0 to 180 degree with 0.05 degree integration interval for each frame.
+- The material has HCP crystal structure.
+- The window size around the Bragg peak is fixed as (&Delta;J=300, &Delta;K=160, &Delta;&Omega;=45).
 
 

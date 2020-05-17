@@ -44,7 +44,7 @@ class Reconstructor:
         Sample.close()
         return x, y
 
-    def ReconGridsPhase1(self, tmpxx, tmpyy, NumD=10000, numCut=100):
+    def ReconGridsPhase1(self, tmpxx, tmpyy, NumD=10000, numCut=10):
         # allocate gpu memory
         XD = gpuarray.empty(self.recon.NumG * NumD, dtype=np.int32)
         YD = gpuarray.empty(self.recon.NumG * NumD, dtype=np.int32)
@@ -91,19 +91,9 @@ class Reconstructor:
             KLdivergences[ii] = np.sum(KLH)
         return KLdivergences
 
-    def L1_eachG(self):
-        L1divergences = np.empty(self.recon.NumG)
-        for ii in range(self.recon.NumG):
-            L1D = gpuarray.empty(300 * 160 * 45, dtype=np.float32)
-            self.recon.L1_total_func(L1D, self.realMapsD, self.falseMapsD,
-                                     np.int32(ii), np.int32(self.recon.NumG), np.int32(45),
-                                     block=(45, 1, 1), grid=(300 * 160, 1))
-            L1H = L1D.get()
-            L1divergences[ii] = np.sum(L1H)
-        return L1divergences
 
     def ReconGridsPhase2(self, tmpxx, tmpyy, AllMaxS,
-                         NumD=10000, numCut=50, iterN=10, shuffle=False, fidelity='KL'):
+                         NumD=10000, numCut=50, iterN=10, shuffle=False):
         # allocate gpu memory
         XD = gpuarray.empty(self.recon.NumG * NumD, dtype=np.int32)
         YD = gpuarray.empty(self.recon.NumG * NumD, dtype=np.int32)
@@ -121,23 +111,12 @@ class Reconstructor:
             else:
                 order = np.arange(len(tmpxx))
             for ii in order:
-                if (fidelity == 'KL'):
-                    tmp = optimizers.ChangeOneVoxel_KL(self.recon,
-                                                       tmpxx[ii], tmpyy[ii], AllMaxS[ii], self.realMapsLogD,
-                                                       self.falseMapsD,
-                                                       XD, YD, OffsetD, MaskD, TrueMaskD, diffD, S_gpu,
-                                                       NumD=NumD, numCut=numCut, cov=1e-6 * np.eye(9), MaxIter=3,
-                                                       debug=False)
-                elif (fidelity == 'L1'):
-                    tmp = optimizers.ChangeOneVoxel_L1(self.recon,
-                                                       tmpxx[ii], tmpyy[ii], AllMaxS[ii], self.realMapsD,
-                                                       self.falseMapsD,
-                                                       XD, YD, OffsetD, MaskD, TrueMaskD, diffD, S_gpu,
-                                                       NumD=NumD, numCut=numCut, cov=1e-6 * np.eye(9), MaxIter=3,
-                                                       debug=False)
-                else:
-                    print("fidelity function must be KL or L1")
-                    return AllMaxS, None
+                tmp = optimizers.ChangeOneVoxel_KL(self.recon,
+                                                   tmpxx[ii], tmpyy[ii], AllMaxS[ii], self.realMapsLogD,
+                                                   self.falseMapsD,
+                                                   XD, YD, OffsetD, MaskD, TrueMaskD, diffD, S_gpu,
+                                                   NumD=NumD, numCut=numCut, cov=1e-6 * np.eye(9), MaxIter=3,
+                                                   debug=False)
                 AllMaxS[ii] = tmp[1]
                 acc += tmp[2]
                 history.append(acc)
@@ -161,7 +140,7 @@ class Reconstructor:
             y = f["y"][:]
             AllMaxS = f["Phase1_S"][:]
             self.SimPhase1Result(x, y, AllMaxS)
-            AllMaxS, history = self.ReconGridsPhase2(x, y, AllMaxS, iterN=10, shuffle=True)
+            AllMaxS, history = self.ReconGridsPhase2(x, y, AllMaxS)
             tmp = f["Phase2_S"]
             tmp[...] = AllMaxS
             tmp = f["Phase2_history"]
@@ -189,7 +168,7 @@ class Reconstructor:
                 f.create_dataset("Phase1_S", data=AllMaxS)
 
                 self.SimPhase1Result(x, y, AllMaxS)
-                AllMaxS, history = self.ReconGridsPhase2(x, y, AllMaxS, fidelity='KL')
+                AllMaxS, history = self.ReconGridsPhase2(x, y, AllMaxS)
                 f.create_dataset("Phase2_S", data=AllMaxS)
                 KLd=self.KL_eachG()
                 f.create_dataset("final_KLdivergence",data=KLd)

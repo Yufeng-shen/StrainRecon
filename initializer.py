@@ -197,7 +197,7 @@ class Initializer:
                           xsD, ysD, self.afDetInfoD, ssD,
                           self.whichOmegaD, np.int32(NumD), np.int32(self.NumG),
                           np.float32(self.Cfg.energy), np.int32(45), self.LimD, 
-                          np.int32(5),self.Cfg.omgInterval,
+                          np.int32(5),np.float32(self.Cfg.omgInterval),
                           block=(self.NumG, 1, 1), grid=(NumD, 1))
         xtmp = XD.get().reshape((-1, self.NumG))
         ytmp = YD.get().reshape((-1, self.NumG))

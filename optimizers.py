@@ -43,7 +43,8 @@ def CrossEntropyMethod(recon, x, y,
 
 def ChangeOneVoxel_KL(recon, x, y, mean, realMapsLogD, falseMapsD,
                       XD, YD, OffsetD, MaskD, TrueMaskD, diffD, S_gpu,
-                      NumD=10000, numCut=50, cov=1e-6 * np.eye(9), epsilon=1e-6, MaxIter=3, BlockSize=256, debug=False):
+                      NumD=10000, numCut=50, cov=1e-6 * np.eye(9), epsilon=1e-6, 
+                      MaxIter=3, BlockSize=256, debug=False, neighborAvg=None, smoothness=10):
     if not recon.GsLoaded:
         recon.loadGs()
     # remove the original hit
@@ -76,13 +77,15 @@ def ChangeOneVoxel_KL(recon, x, y, mean, realMapsLogD, falseMapsD,
                            np.int32(recon.NumG), np.int32(NumD), np.int32(45),
                            block=(BlockSize, 1, 1), grid=(int(NumD / BlockSize + 1), 1))
         diffH = diffD.get()
-        args = np.argpartition(diffH, numCut)[:numCut]
+        smoothPenalty = np.sum(np.absolute(S - neighborAvg),axis=(1,2))
+        args = np.argpartition(diffH + smoothPenalty*smoothness, numCut)[:numCut]
         cov = np.cov(S[args].reshape((numCut, 9), order='C').T)
         mean = np.mean(S[args], axis=0)
         if ii == 0:
             diff_init = diffH[0]
         if debug:
-            print(np.min(diffH), diffH[0])
+            print("diffH", np.min(diffH), diffH[0])
+            print("smooth penalty", np.min(smoothPenalty), smoothPenalty[0])
     # add the new hit
     S = mean
     cuda.memcpy_htod(S_gpu, S.ravel().astype(np.float32))

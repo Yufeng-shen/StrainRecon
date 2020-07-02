@@ -41,6 +41,36 @@ class Reconstructor:
         idx = np.where(GIDLayer == self.Cfg.grainID)
         x = xv[idx]
         y = yv[idx]
+
+        # get the information for neighboring grid point
+        idx_arr = np.array(idx).T
+        self.idxUp = []
+        self.idxDown = []
+        self.idxLeft = []
+        self.idxRight = []
+        for ii in range(len(idx_arr)):
+            p = idx_arr[ii]
+            tmp = np.where((idx_arr == (p[0],p[1]+1)).all(axis=1))[0]
+            if len(tmp)==1:
+                self.idxUp.append(int(tmp))
+            else:
+                self.idxUp.append(None)
+            tmp = np.where((idx_arr == (p[0],p[1]-1)).all(axis=1))[0]
+            if len(tmp)==1:
+                self.idxDown.append(int(tmp))
+            else:
+                self.idxDown.append(None)
+            tmp = np.where((idx_arr == (p[0]-1,p[1])).all(axis=1))[0]
+            if len(tmp)==1:
+                self.idxLeft.append(int(tmp))
+            else:
+                self.idxLeft.append(None)
+            tmp = np.where((idx_arr == (p[0]+1,p[1])).all(axis=1))[0]
+            if len(tmp)==1:
+                self.idxRight.append(int(tmp))
+            else:
+                self.idxRight.append(None)
+
         Sample.close()
         return x, y
 
@@ -93,7 +123,8 @@ class Reconstructor:
 
 
     def ReconGridsPhase2(self, tmpxx, tmpyy, AllMaxS,
-                         NumD=10000, numCut=50, iterN=10, shuffle=False):
+                         NumD=10000, numCut=50, iterN=10, 
+                         shuffle=False, smoothness=10,debug=False):
         # allocate gpu memory
         XD = gpuarray.empty(self.recon.NumG * NumD, dtype=np.int32)
         YD = gpuarray.empty(self.recon.NumG * NumD, dtype=np.int32)
@@ -111,12 +142,21 @@ class Reconstructor:
             else:
                 order = np.arange(len(tmpxx))
             for ii in order:
+                u = self.idxUp[ii]
+                d = self.idxDown[ii]
+                l = self.idxLeft[ii]
+                r = self.idxRight[ii]
+                if u==None or d==None or l==None or r ==None:
+                    avgS = AllMaxS[ii]
+                else:
+                    avgS = np.mean([AllMaxS[u],AllMaxS[d],AllMaxS[l],AllMaxS[r]],axis=0)
+
                 tmp = optimizers.ChangeOneVoxel_KL(self.recon,
                                                    tmpxx[ii], tmpyy[ii], AllMaxS[ii], self.realMapsLogD,
                                                    self.falseMapsD,
                                                    XD, YD, OffsetD, MaskD, TrueMaskD, diffD, S_gpu,
                                                    NumD=NumD, numCut=numCut, cov=1e-6 * np.eye(9), MaxIter=3,
-                                                   debug=False)
+                                                   debug=debug, neighborAvg=avgS,smoothness=smoothness)
                 AllMaxS[ii] = tmp[1]
                 acc += tmp[2]
                 history.append(acc)

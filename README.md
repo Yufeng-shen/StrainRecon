@@ -1,4 +1,24 @@
 # StrainRecon
+Code for the papar:
+[Voxel-based strain tensors from near-field High Energy Diffraction Microscopy](https://www.sciencedirect.com/science/article/pii/S1359028620300504)
+
+```
+@article{SHEN2020100852,
+title = {Voxel-based strain tensors from near-field High Energy Diffraction Microscopy},
+journal = {Current Opinion in Solid State and Materials Science},
+volume = {24},
+number = {4},
+pages = {100852},
+year = {2020},
+issn = {1359-0286},
+doi = {https://doi.org/10.1016/j.cossms.2020.100852},
+url = {https://www.sciencedirect.com/science/article/pii/S1359028620300504},
+author = {Yu-Feng Shen and He Liu and Robert M. Suter},
+keywords = {Microstructure, Metals, Strain, nf-HEDM, 3DXRD}
+}
+```
+
+
 This software is an intra-granular strain tensor reconstruction toolkit for near-field high-energy X-ray diffraction microscopy ([nf-HEDM](https://www.andrew.cmu.edu/user/suter/3dxdm/3dxdm.html)). This readme file contains information about its [Usage](#usage), its [Dependencies](#dependencies) on other libraries, the [Structure](#package-structure) of the package, the [Formats](#file-formats) of its input and output files.
 
 ## Dependencies
